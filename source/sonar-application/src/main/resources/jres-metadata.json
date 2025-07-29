@@ -1,0 +1,50 @@
+[
+    {
+        "id": "239eae93-1efe-4b56-8446-b431dfcdf828",
+        "filename": "OpenJDK17U-jre_x64_linux_hotspot_17.0.13_11.tar.gz",
+        "sha256": "4086cc7cb2d9e7810141f255063caad10a8a018db5e6b47fa5394c506ab65bff",
+        "javaPath": "jdk-17.0.13+11-jre/bin/java",
+        "os": "linux",
+        "arch": "x64"
+    },
+    {
+        "id": "1f23bf9f-6da2-4588-9f20-2b05a88f30f7",
+        "filename": "OpenJDK17U-jre_aarch64_linux_hotspot_17.0.13_11.tar.gz",
+        "sha256": "97c4fb748eaa1292fb2f28fec90a3eba23e35974ef67f8b3aa304ad4db2ba162",
+        "javaPath": "jdk-17.0.13+11-jre/bin/java",
+        "os": "linux",
+        "arch": "aarch64"
+    },
+    {
+        "id": "8c3b9854-5d21-41d2-94c4-27ab6a167460",
+        "filename": "OpenJDK17U-jre_x64_alpine-linux_hotspot_17.0.13_11.tar.gz",
+        "sha256": "7a2df4e2f86eca649af1e17d990ab8e354cb6dee389606025b9d05f75623c388",
+        "javaPath": "jdk-17.0.13+11-jre/bin/java",
+        "os": "alpine",
+        "arch": "x64"
+    },
+    {
+        "id": "c5fceadc-0f9d-4d05-995e-ef3d3a1f8467",
+        "filename": "OpenJDK17U-jre_x64_windows_hotspot_17.0.13_11.zip",
+        "sha256": "11a61a94d383e755b08b4e5890a13d148bc9f95b7149cbbeec62efb8c75a4a67",
+        "javaPath": "jdk-17.0.13+11-jre/bin/java.exe",
+        "os": "windows",
+        "arch": "x64"
+    },
+    {
+        "id": "b7702fec-c4a5-4e8c-8fc2-eebd2582b313",
+        "filename": "OpenJDK17U-jre_x64_mac_hotspot_17.0.13_11.tar.gz",
+        "sha256": "bf9faf4540001a251e6bfb52b99c7ec5b1f36d3ebe94e104f61a30f173ba8c78",
+        "javaPath": "jdk-17.0.13+11-jre/Contents/Home/bin/java",
+        "os": "mac",
+        "arch": "x64"
+    },
+    {
+        "id": "de1ecc90-6c96-49db-8c29-7964eaf40d9f",
+        "filename": "OpenJDK17U-jre_aarch64_mac_hotspot_17.0.13_11.tar.gz",
+        "sha256": "a886b8f2a50eca2e59b45ea59f5a2e8e9d27ff5b5b3b069443a70cda7f27c907",
+        "javaPath": "jdk-17.0.13+11-jre/Contents/Home/bin/java",
+        "os": "mac",
+        "arch": "aarch64"
+    }
+]

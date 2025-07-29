@@ -1,0 +1,34 @@
+description = 'WebServer "API" to write Web Services'
+
+sonar {
+  properties {
+    property 'sonar.projectName', "${projectTitle} :: WebServer :: WS"
+  }
+}
+
+dependencies {
+  // please keep the list grouped by configuration and ordered by name
+
+  api 'com.google.guava:guava'
+  api 'org.sonarsource.api.plugin:sonar-plugin-api'
+  api project(':sonar-core')
+  api project(':server:sonar-webserver-api')
+  api project(':sonar-plugin-api-impl')
+  api project(':sonar-ws')
+
+  compileOnlyApi 'com.github.spotbugs:spotbugs-annotations'
+  compileOnlyApi 'jakarta.servlet:jakarta.servlet-api'
+  compileOnlyApi 'org.apache.tomcat.embed:tomcat-embed-core'
+
+  testImplementation 'com.tngtech.java:junit-dataprovider'
+  testImplementation 'junit:junit'
+  testImplementation 'com.github.spotbugs:spotbugs-annotations'
+  testImplementation 'jakarta.servlet:jakarta.servlet-api'
+  testImplementation 'org.apache.tomcat.embed:tomcat-embed-core'
+  testImplementation 'org.mockito:mockito-core'
+  testImplementation 'org.sonarsource.api.plugin:sonar-plugin-api-test-fixtures'
+
+  testFixturesApi project(':sonar-testing-harness')
+
+  testFixturesCompileOnly 'com.github.spotbugs:spotbugs-annotations'
+}

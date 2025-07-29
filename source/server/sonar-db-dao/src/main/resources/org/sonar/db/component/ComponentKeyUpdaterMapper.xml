@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "mybatis-3-mapper.dtd">
+
+<mapper namespace="org.sonar.db.component.ComponentKeyUpdaterMapper">
+
+  <resultMap id="resourceResultMap" type="Resource">
+    <result property="key" column="kee"/>
+    <result property="uuid" column="uuid"/>
+    <result property="deprecatedKey" column="deprecated_kee"/>
+    <result property="scope" column="scope"/>
+    <result property="enabled" column="enabled"/>
+  </resultMap>
+
+  <select id="countComponentsByKey" parameterType="String" resultType="int">
+    SELECT count(1)
+    FROM components
+    WHERE kee = #{key,jdbcType=VARCHAR}
+  </select>
+
+  <select id="selectComponentByUuid" parameterType="String" resultMap="resourceResultMap">
+    select * from components
+    where uuid = #{uuid,jdbcType=VARCHAR}
+  </select>
+
+  <select id="selectBranchResources" parameterType="String" resultMap="resourceResultMap">
+    select * from components
+    where
+    branch_uuid = #{branchUuid,jdbcType=VARCHAR}
+    and scope != 'PRJ'
+  </select>
+
+  <update id="updateComponent" parameterType="Resource">
+    update components
+    set kee = #{key,jdbcType=VARCHAR}, deprecated_kee = #{deprecatedKey,jdbcType=VARCHAR}
+    where uuid = #{uuid,jdbcType=VARCHAR}
+  </update>
+
+  <update id="updateProject">
+    update projects
+    set kee = #{newProjectKey,jdbcType=VARCHAR}
+    where kee = #{oldProjectKey,jdbcType=VARCHAR}
+  </update>
+
+</mapper>
+

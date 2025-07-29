@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "mybatis-3-mapper.dtd">
+
+<mapper namespace="org.sonar.db.user.UserTokenMapper">
+
+  <sql id="userTokensColumns">
+    t.uuid as "uuid",
+    t.user_uuid as "userUuid",
+    t.name as "name",
+    t.token_hash as "tokenHash",
+    t.last_connection_date as "lastConnectionDate",
+    t.created_at as "createdAt",
+    t.project_uuid as "projectUuid",
+    t.type as "type",
+    t.expiration_date as "expirationDate",
+    p.name as "projectName",
+    p.kee as "projectKey"
+  </sql>
+
+  <insert id="insert" parameterType="UserToken" useGeneratedKeys="false">
+    insert into user_tokens (
+    uuid,
+    user_uuid,
+    name,
+    token_hash,
+    created_at,
+    project_uuid,
+    type,
+    expiration_date
+    ) values (
+    #{uuid, jdbcType=VARCHAR},
+    #{userUuid, jdbcType=VARCHAR},
+    #{name, jdbcType=VARCHAR},
+    #{tokenHash, jdbcType=VARCHAR},
+    #{createdAt, jdbcType=BIGINT},
+    #{projectUuid, jdbcType=VARCHAR},
+    #{type, jdbcType=VARCHAR},
+    #{expirationDate, jdbcType=BIGINT}
+    )
+  </insert>
+
+  <update id="update" parameterType="UserToken">
+    UPDATE user_tokens SET
+      last_connection_date = #{lastConnectionDate, jdbcType=BIGINT}
+    WHERE
+      user_uuid = #{userUuid, jdbcType=VARCHAR}
+      AND name = #{name, jdbcType=VARCHAR}
+  </update>
+
+  <select id="selectByTokenHash" parameterType="String" resultType="UserToken">
+    SELECT
+    <include refid="userTokensColumns"/>
+    FROM user_tokens t
+    LEFT JOIN projects p on t.project_uuid = p.uuid
+    WHERE t.token_hash=#{tokenHash, jdbcType=VARCHAR}
+  </select>
+
+  <select id="selectTokensExpiredOnDate" parameterType="Long" resultType="UserToken">
+    SELECT
+    <include refid="userTokensColumns"/>
+    FROM user_tokens t
+    LEFT JOIN projects p on t.project_uuid = p.uuid
+    WHERE t.expiration_date = #{timestamp, jdbcType=BIGINT}
+  </select>
+
+  <select id="selectByUserUuidAndName" parameterType="map" resultType="UserToken">
+    SELECT
+    <include refid="userTokensColumns"/>
+    FROM user_tokens t
+    LEFT JOIN projects p on t.project_uuid = p.uuid
+    WHERE t.user_uuid=#{userUuid, jdbcType=VARCHAR} and t.name=#{name, jdbcType=VARCHAR}
+  </select>
+
+  <select id="selectByUserUuid" parameterType="map" resultType="UserToken">
+    SELECT
+    <include refid="userTokensColumns"/>
+    FROM user_tokens t
+    LEFT JOIN projects p on t.project_uuid = p.uuid
+    WHERE t.user_uuid=#{userUuid, jdbcType=VARCHAR}
+  </select>
+  
+  <select id="countTokensByUserUuids" parameterType="map" resultType="UserTokenCount">
+    SELECT t.user_uuid as "userUuid", count(t.name) as "tokenCount"
+    FROM user_tokens t
+    WHERE t.user_uuid in
+    <foreach collection="userUuids" open="(" close=")" item="userUuid" separator=",">
+      #{userUuid, jdbcType=VARCHAR}
+    </foreach>
+    GROUP BY t.user_uuid
+  </select>
+
+  <delete id="deleteByUserUuid">
+    DELETE FROM user_tokens WHERE user_uuid=#{userUuid, jdbcType=VARCHAR}
+  </delete>
+
+  <delete id="deleteByUserUuidAndName">
+    DELETE FROM user_tokens WHERE user_uuid=#{userUuid, jdbcType=VARCHAR} and name=#{name, jdbcType=VARCHAR}
+  </delete>
+
+  <delete id="deleteByProjectUuid">
+    DELETE FROM user_tokens WHERE project_uuid=#{projectUuid, jdbcType=VARCHAR}
+  </delete>
+
+</mapper>

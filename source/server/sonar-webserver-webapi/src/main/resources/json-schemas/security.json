@@ -1,0 +1,109 @@
+{
+  "title": "Custom configuration schema",
+  "description": "Schema to validate custom configuration given as input to the custom configuration properties",
+  "definitions": {
+    "Interval": {
+      "type": "object",
+      "properties": {
+        "fromIndex": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "CommonConfiguration": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "minItems": 1
+        },
+        "interval": {
+          "$ref": "#/definitions/Interval"
+        },
+        "isMethodPrefix": {
+          "type": "boolean"
+        },
+        "isShallow": {
+          "type": "boolean"
+        },
+        "isWhitelist": {
+          "type": "boolean"
+        },
+        "methodId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "methodId"
+      ],
+      "additionalProperties": false
+    },
+    "SanitizerOrValidator": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/CommonConfiguration"
+        }
+      ],
+      "required": [
+        "args"
+      ]
+    },
+    "RuleConfiguration": {
+      "type": "object",
+      "properties": {
+        "decoders": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CommonConfiguration"
+          }
+        },
+        "encoders": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CommonConfiguration"
+          }
+        },
+        "passthroughs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CommonConfiguration"
+          }
+        },
+        "sanitizers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SanitizerOrValidator"
+          }
+        },
+        "validators": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SanitizerOrValidator"
+          }
+        },
+        "sinks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CommonConfiguration"
+          }
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CommonConfiguration"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "type": "object",
+  "additionalProperties": {
+    "$ref": "#/definitions/RuleConfiguration"
+  }
+}

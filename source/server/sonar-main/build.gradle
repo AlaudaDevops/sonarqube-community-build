@@ -1,0 +1,39 @@
+sonar {
+  properties {
+    property 'sonar.projectName', "${projectTitle} :: Main Process"
+  }
+}
+
+dependencies {
+  // please keep the list grouped by configuration and ordered by name
+
+  api 'ch.qos.logback:logback-classic'
+  api 'ch.qos.logback:logback-core'
+
+  // Required by our usage of Guava for clustering : CeWorkerFactoryImpl.getClusteredWorkerUUIDs()
+  api 'com.google.guava:guava'
+  api 'com.hazelcast:hazelcast'
+  api 'commons-io:commons-io'
+  api 'org.apache.commons:commons-lang3'
+  api 'org.apache.logging.log4j:log4j-to-slf4j'
+  api 'org.apache.logging.log4j:log4j-api'
+  api 'org.elasticsearch.client:elasticsearch-rest-high-level-client'
+  api 'org.slf4j:slf4j-api'
+  api 'org.yaml:snakeyaml'
+  
+  api project(':server:sonar-process')
+  api project(':sonar-core')
+
+  compileOnlyApi 'com.github.spotbugs:spotbugs-annotations'
+
+  testImplementation 'com.github.spotbugs:spotbugs-annotations'
+  testImplementation 'com.tngtech.java:junit-dataprovider'
+  testImplementation 'junit:junit'
+  testImplementation 'org.assertj:assertj-core'
+  testImplementation 'org.awaitility:awaitility'
+  testImplementation 'org.mockito:mockito-core'
+  testImplementation 'com.squareup.okhttp3:mockwebserver'
+  testImplementation 'com.squareup.okhttp3:okhttp-tls'
+  testImplementation 'commons-logging:commons-logging'
+  testImplementation project(':sonar-testing-harness')
+}

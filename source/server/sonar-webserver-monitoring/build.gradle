@@ -1,0 +1,14 @@
+description = 'SonarQube :: Monitoring'
+
+dependencies {
+    api project(':server:sonar-webserver-api')
+    api project(':server:sonar-webserver-pushapi')
+    api project(':server:sonar-alm-client')
+    api 'io.prometheus:simpleclient'
+    api'org.sonarsource.api.plugin:sonar-plugin-api'
+
+    testImplementation 'junit:junit'
+    testImplementation 'org.assertj:assertj-core'
+    testImplementation 'org.mockito:mockito-core'
+    testImplementation 'org.sonarsource.api.plugin:sonar-plugin-api-test-fixtures'
+}

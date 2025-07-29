@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "mybatis-3-mapper.dtd">
+
+<mapper namespace="org.sonar.db.ce.CeTaskMessageMapper">
+
+  <sql id="columns">
+    ctm.uuid,
+    ctm.task_uuid as taskUuid,
+    ctm.message as message,
+    ctm.message_type as type,
+    ctm.created_at as createdAt
+  </sql>
+
+  <select id="selectByUuid" resultType="org.sonar.db.ce.CeTaskMessageDto">
+    select
+      <include refid="columns"/>
+    from
+      ce_task_message ctm
+    where
+      ctm.uuid=#{uuid,jdbcType=VARCHAR}
+  </select>
+
+  <insert id="insert" parameterType="org.sonar.db.ce.CeTaskMessageDto" useGeneratedKeys="false">
+    insert into ce_task_message
+    (
+      uuid,
+      task_uuid,
+      message,
+      message_type,
+      created_at
+    )
+    values (
+      #{dto.uuid,jdbcType=VARCHAR},
+      #{dto.taskUuid,jdbcType=VARCHAR},
+      #{dto.message,jdbcType=VARCHAR},
+      #{dto.type,jdbcType=VARCHAR},
+      #{dto.createdAt,jdbcType=BIGINT}
+    )
+  </insert>
+
+  <select id="selectNonDismissedByUserAndTask" resultType="org.sonar.db.ce.CeTaskMessageDto">
+    select
+      <include refid="columns"/>
+    from
+      ce_task_message ctm
+    where
+      ctm.task_uuid=#{taskUuid,jdbcType=VARCHAR}
+      and not exists (
+        select 1
+        from user_dismissed_messages udm
+        where ctm.message_type = udm.message_type and udm.user_uuid=#{userUuid,jdbcType=VARCHAR}
+      )
+    order by
+      ctm.created_at asc
+  </select>
+
+  <delete id="deleteByType" parameterType="String">
+    delete from ce_task_message where message_type = #{ceMessageType, jdbcType=VARCHAR}
+  </delete>
+
+</mapper>

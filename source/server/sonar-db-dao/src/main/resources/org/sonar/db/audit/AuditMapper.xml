@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "mybatis-3-mapper.dtd">
+
+<mapper namespace="org.sonar.db.audit.AuditMapper">
+
+  <sql id="sqlColumns">
+    a.uuid as "uuid",
+    a.user_uuid as "userUuid",
+    a.user_login as "userLogin",
+    a.user_triggered as "userTriggered",
+    a.category as "category",
+    a.operation as "operation",
+    a.new_value as "newValue",
+    a.created_at as "createdAt"
+  </sql>
+
+  <sql id="sqlColumnsInInnerQuery">
+    uuid,
+    user_uuid,
+    user_login,
+    user_triggered,
+    category,
+    operation,
+    new_value,
+    created_at
+  </sql>
+
+  <select id="selectByPeriodPaginated" parameterType="map" resultType="org.sonar.db.audit.AuditDto">
+    select
+      <include refid="sqlColumns"/>
+    from audits a
+    where
+      a.created_at &gt;= #{start} and a.created_at &lt; #{end}
+    order by created_at asc, uuid asc
+    <include refid="org.sonar.db.common.Common.pagination"/>
+  </select>
+
+  <insert id="insert" parameterType="Map" useGeneratedKeys="false">
+    INSERT INTO audits
+    (
+      uuid,
+      user_uuid,
+      user_login,
+      user_triggered,
+      category,
+      operation,
+      new_value,
+      created_at
+    )
+    VALUES (
+      #{dto.uuid, jdbcType=VARCHAR},
+      #{dto.userUuid, jdbcType=VARCHAR},
+      #{dto.userLogin, jdbcType=VARCHAR},
+      #{dto.userTriggered, jdbcType=BOOLEAN},
+      #{dto.category, jdbcType=VARCHAR},
+      #{dto.operation, jdbcType=VARCHAR},
+      #{dto.newValue, jdbcType=VARCHAR},
+      #{dto.createdAt, jdbcType=BIGINT}
+    )
+  </insert>
+
+  <select id="selectOlderThan" parameterType="long" resultType="org.sonar.db.audit.AuditDto">
+    select
+      <include refid="sqlColumns"/>
+    from audits a
+    where
+      a.created_at &lt; #{beforeTimestamp,jdbcType=BIGINT}
+  </select>
+
+  <select id="selectUuidsOlderThan" parameterType="long" resultType="string">
+    select a.uuid
+    from audits a
+    where a.created_at &lt; #{beforeTimestamp,jdbcType=BIGINT}
+    order by a.created_at
+    limit 100000
+  </select>
+
+    <select id="selectUuidsOlderThan" parameterType="long" resultType="string" databaseId="mssql">
+    select top 100000 a.uuid
+    from audits a
+    where a.created_at &lt; #{beforeTimestamp,jdbcType=BIGINT}
+    order by a.created_at
+  </select>
+
+    <select id="selectUuidsOlderThan" parameterType="long" resultType="string" databaseId="oracle">
+    select a.uuid
+    from audits a
+    where a.created_at &lt; #{beforeTimestamp,jdbcType=BIGINT}
+    order by a.created_at
+    fetch first 100000 rows only
+  </select>
+
+  <delete id="purgeUuids" parameterType="string">
+    delete from audits where uuid in
+    <foreach collection="uuids" open="(" close=")" item="uuid" separator=",">#{uuid,jdbcType=VARCHAR}</foreach>
+  </delete>
+</mapper>

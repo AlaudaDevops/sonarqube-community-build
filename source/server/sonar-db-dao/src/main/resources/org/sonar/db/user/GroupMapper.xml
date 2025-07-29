@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "mybatis-3-mapper.dtd">
+
+<mapper namespace="org.sonar.db.user.GroupMapper">
+
+  <sql id="groupColumns">
+    g.uuid as uuid,
+    g.name as name,
+    g.description as description,
+    g.created_at as "createdAt",
+    g.updated_at as "updatedAt"
+  </sql>
+
+  <select id="selectByName" parameterType="map" resultType="Group">
+    select
+    <include refid="groupColumns"/>
+    from groups g
+    where g.name = #{name,jdbcType=VARCHAR}
+  </select>
+
+  <select id="selectByUuids" parameterType="String" resultType="Group">
+    select
+    <include refid="groupColumns"/>
+    from groups g
+    where g.uuid in
+    <foreach item="uuid" index="index" collection="uuids" open="(" separator="," close=")">
+      #{uuid,jdbcType=VARCHAR}
+    </foreach>
+  </select>
+
+  <select id="selectByUuid" parameterType="String" resultType="Group">
+    SELECT
+    <include refid="groupColumns"/>
+    FROM groups g
+    <where>
+      g.uuid=#{uuid,jdbcType=VARCHAR}
+    </where>
+  </select>
+
+  <delete id="deleteByUuid" parameterType="String">
+    DELETE FROM groups
+    <where>
+      uuid=#{uuid,jdbcType=VARCHAR}
+    </where>
+  </delete>
+
+  <select id="selectByUserLogin" parameterType="string" resultType="Group">
+    select
+    <include refid="groupColumns"/>
+    from groups g
+    inner join groups_users gu on gu.group_uuid = g.uuid
+    inner join users u on u.uuid = gu.user_uuid
+    where  u.login=#{login,jdbcType=VARCHAR}
+  </select>
+
+  <select id="selectByNames" parameterType="map" resultType="Group">
+    select
+    <include refid="groupColumns"/>
+    from groups g
+    where
+      g.name in
+      <foreach item="name" index="index" collection="names" open="(" separator="," close=")">
+        #{name,jdbcType=VARCHAR}
+      </foreach>
+  </select>
+
+  <insert id="insert" parameterType="Group" useGeneratedKeys="false">
+    insert into groups (
+    uuid,
+    name,
+    description,
+    created_at,
+    updated_at
+    ) values (
+    #{uuid,jdbcType=VARCHAR},
+    #{name,jdbcType=VARCHAR},
+    #{description,jdbcType=VARCHAR},
+    #{createdAt,jdbcType=TIMESTAMP},
+    #{updatedAt,jdbcType=TIMESTAMP}
+    )
+  </insert>
+
+  <update id="update" parameterType="Group">
+    UPDATE groups SET
+    name=#{name,jdbcType=VARCHAR},
+    description=#{description,jdbcType=VARCHAR},
+    updated_at=#{updatedAt,jdbcType=TIMESTAMP}
+    WHERE uuid=#{uuid}
+  </update>
+
+  <select id="selectByQuery" resultType="Group">
+    select
+    <include refid="groupColumns"/>
+    from groups g
+    <include refid="searchByQueryWhereClause"/>
+    order by upper(g.name)
+    <include refid="org.sonar.db.common.Common.pagination"/>
+  </select>
+
+  <select id="countByQuery" parameterType="map" resultType="int">
+    select count(1)
+    from groups g
+    <include refid="searchByQueryWhereClause"/>
+  </select>
+
+  <sql id="searchByQueryWhereClause">
+         <where>
+             1=1
+            <if test="query.searchText != null">
+                AND upper(g.name) like #{query.searchText,jdbcType=VARCHAR} escape '/'
+            </if>
+            <if test="query.isManagedSqlClause != null">
+                AND ${query.isManagedSqlClause}
+            </if>
+        </where>
+    </sql>
+</mapper>

@@ -1,0 +1,11 @@
+{
+  "configuration": {
+    "showSettings": false,
+    "showQualityProfiles": false,
+    "showQualityGates": true,
+    "showLinks": false,
+    "showPermissions": false,
+    "showHistory": false,
+    "showUpdateKey": false
+  }
+}

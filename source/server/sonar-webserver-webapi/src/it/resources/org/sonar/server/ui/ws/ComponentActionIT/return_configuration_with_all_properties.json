@@ -1,0 +1,16 @@
+{
+  "configuration": {
+    "showSettings": true,
+    "showQualityProfiles": true,
+    "showQualityGates": true,
+    "showLinks": true,
+    "showPermissions": true,
+    "showHistory": true,
+    "showUpdateKey": true,
+    "showBackgroundTasks": true,
+    "canApplyPermissionTemplate": false,
+    "canBrowseProject": true,
+    "canUpdateProjectVisibilityToPrivate": true,
+    "extensions": []
+  }
+}

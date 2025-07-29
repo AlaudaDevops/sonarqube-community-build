@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <link rel="apple-touch-icon" href="WEB_CONTEXT/apple-touch-icon.png" />
+    <link rel="icon" type="image/x-icon" href="WEB_CONTEXT/favicon.ico" />
+    <meta name="application-name" content="SonarQube" />
+    <meta name="msapplication-TileColor" content="#FFFFFF" />
+    <meta name="msapplication-TileImage" content="WEB_CONTEXT/mstile-512x512.png" />
+    <title>SAML Authentication Test</title>
+
+    <style>
+      body {
+        background-color: #f3f3f3;
+        font-family: Helvetica Neue,Helvetica,Arial,sans-serif;
+      }
+
+      h1 {
+        margin: 0 8px 8px;
+      }
+      h2 {
+        margin: 0 0 8px;
+      }
+
+      ul {
+        list-style: none;
+        margin: 0 8px;
+        padding: 0;
+      }
+
+      li + li {
+        padding-top: 12px;
+        margin-top: 12px;
+        border-top: 1px solid rgba(150, 150, 150, 0.5);
+      }
+
+      table {
+        border-collapse: collapse;
+      }
+
+      tr:nth-child(2n) {
+        background-color: #e6e6e6;
+      }
+
+      td {
+        border: 1px solid #a3a3a3;
+        padding: 4px 24px 4px 8px;
+        vertical-align: top;
+        font-family: "Courier New", Courier, monospace;
+        white-space: pre-line;
+      }
+
+      #content {
+        padding: 16px;
+      }
+
+      .box {
+        padding: 8px;
+        margin: 8px;
+        border: 1px solid #e6e6e6;
+        background-color: white;
+        box-shadow: 2px 2px 3px 0px rgba(0, 0, 0, 0.5);
+      }
+
+      #status {
+        padding: 16px 8px;
+        font-size: large;
+        color: white;
+      }
+
+      .error {
+        background-color: #d02f3a;
+      }
+
+      .success {
+        background-color: #008223;
+      }
+
+      .success-label {
+        color: #008223;
+      }
+
+      .label {
+        font-size: 20px;
+      }
+
+      .spacer-right {
+        margin-right: 10px;
+      }
+
+    </style>
+  </head>
+
+  <body>
+    <div id="content">
+      <h1>SAML Authentication Test</h1>
+      <div class="box">
+        <div id="status"></div>
+      </div>
+      <div id="response" data-response="%SAML_AUTHENTICATION_STATUS%"></div>
+    </div>
+
+    <script nonce="%NONCE%">
+      window.addEventListener('DOMContentLoaded', (event) => {
+
+      function createBox() {
+        const box = document.createElement("div");
+        box.className = "box";
+        return box;
+      }
+
+      function createSectionTitle(title) {
+        const node = document.createElement("h2");
+        node.textContent = title;
+        return node;
+      }
+
+      function createEnabledLabel() {
+        const node = document.createElement("p");
+        node.innerHTML = '<svg class="spacer-right" height="16" version="1.1" viewBox="0 0 16 16" width="16" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" style="fill-rule: evenodd; clip-rule: evenodd; stroke-linejoin: round; stroke-miterlimit: 1.41421;"><path d="M14.92 4.804q0 0.357-0.25 0.607l-7.679 7.679q-0.25 0.25-0.607 0.25t-0.607-0.25l-4.446-4.446q-0.25-0.25-0.25-0.607t0.25-0.607l1.214-1.214q0.25-0.25 0.607-0.25t0.607 0.25l2.625 2.634 5.857-5.866q0.25-0.25 0.607-0.25t0.607 0.25l1.214 1.214q0.25 0.25 0.25 0.607z" style="fill: currentcolor;"></path></svg>Enabled';
+        node.classList.add("success-label");
+        node.classList.add("label");
+        return node;
+      }
+
+      function createDisabledLabel() {
+        const node = document.createElement("p");
+        node.textContent = "Disabled";
+        node.classList.add("label");
+        return node;
+      }
+
+      function createList(arr, className = "") {
+        const list = document.createElement("ul");
+
+        arr.forEach((item) => {
+          const message = document.createElement("li");
+          message.className = className;
+          message.textContent = item;
+          list.appendChild(message);
+        });
+
+        return list;
+      }
+
+      function createTable(obj) {
+        const table = document.createElement("table");
+        const tbody = document.createElement("tbody");
+        table.appendChild(tbody);
+
+        Object.keys(obj).forEach((key) => {
+          const row = document.createElement("tr");
+
+          const keyNode = document.createElement("td");
+          keyNode.textContent = key;
+          row.appendChild(keyNode);
+
+          const valueNode = document.createElement("td");
+          // wrap in array, to handle single values as well
+          valueNode.textContent = [].concat(obj[key]).join("\r\n");
+          row.appendChild(valueNode);
+
+          tbody.appendChild(row);
+        });
+
+        return table;
+      }
+
+      function addSection(container, title, contents) {
+        const box = createBox();
+
+        box.appendChild(createSectionTitle(title));
+        box.appendChild(contents);
+
+        container.appendChild(box);
+      }
+
+      const variables = document.querySelector("#response");
+      const response = variables.dataset.response;
+      const decodedStatus = JSON.parse(atob(response));
+      const status = decodedStatus.status;
+      const attributes = decodedStatus.availableAttributes;
+      const mappings = decodedStatus.mappedAttributes;
+      const errors = decodedStatus.errors;
+      const warnings = decodedStatus.warnings;
+      const signatureEnabled = decodedStatus.signatureEnabled;
+      const encryptionEnabled = decodedStatus.encryptionEnabled;
+
+      // Switch status class
+      const statusNode = document.querySelector("#status");
+      statusNode.classList.add(status);
+      statusNode.textContent = status;
+
+      // generate content
+      const container = document.querySelector("#content");
+
+      if (warnings && warnings.length > 0) {
+        addSection(container, "Warnings", createList(warnings));
+      }
+
+      if (status === "error" && errors && errors.length > 0) {
+        addSection(container, "Errors", createList(errors));
+      }
+
+      if (status === "success") {
+        if (attributes && Object.keys(attributes).length > 0) {
+          addSection(container, "Available attributes", createTable(attributes));
+        }
+
+        if (mappings && Object.keys(mappings).length > 0) {
+          addSection(container, "Attribute mappings", createTable(mappings));
+        }
+
+        addSection(container, "Signature of SAML requests", signatureEnabled ? createEnabledLabel() : createDisabledLabel());
+        addSection(container, "Encryption of SAML assertions", encryptionEnabled ? createEnabledLabel() : createDisabledLabel());
+      }
+      });
+    </script>
+  </body>
+</html>

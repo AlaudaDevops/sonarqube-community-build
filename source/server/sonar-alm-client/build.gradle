@@ -1,0 +1,28 @@
+description = 'SonarQube :: ALM integrations :: Clients'
+
+dependencies {
+    api project(':sonar-ws')
+    api project(':server:sonar-webserver-api')
+
+    api 'com.google.code.gson:gson'
+    api 'com.google.guava:guava'
+    api 'com.squareup.okhttp3:okhttp'
+    api 'commons-codec:commons-codec'
+    api 'org.kohsuke:github-api'
+    api 'com.auth0:java-jwt'
+    api 'org.bouncycastle:bcpkix-jdk18on'
+    api 'org.sonarsource.api.plugin:sonar-plugin-api'
+    api project(':server:sonar-auth-github')
+    api project(':server:sonar-auth-gitlab')
+
+    testImplementation project(':sonar-plugin-api-impl')
+
+    testImplementation 'junit:junit'
+    testImplementation 'com.tngtech.java:junit-dataprovider'
+    testImplementation 'org.assertj:assertj-core'
+    testImplementation 'org.assertj:assertj-guava'
+    testImplementation 'org.mockito:mockito-core'
+    testImplementation 'org.sonarsource.api.plugin:sonar-plugin-api-test-fixtures'
+    testImplementation 'com.squareup.okhttp3:mockwebserver'
+
+}

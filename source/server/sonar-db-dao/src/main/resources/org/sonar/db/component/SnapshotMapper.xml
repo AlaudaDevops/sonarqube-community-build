@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "mybatis-3-mapper.dtd">
+<mapper namespace="org.sonar.db.component.SnapshotMapper">
+
+  <sql id="snapshotColumns">
+    s.uuid as uuid,
+    s.root_component_uuid as rootComponentUuid,
+    s.created_at as createdAt,
+    s.analysis_date as analysisDate,
+    s.status as status,
+    s.islast as last,
+    s.version as rawProjectVersion,
+    s.build_string as buildString,
+    s.period1_mode as periodMode,
+    s.period1_param as periodParam,
+    s.period1_date as periodDate,
+    s.revision as revision
+  </sql>
+
+  <sql id="viewsSnapshotColumns">
+    s.uuid,
+    s.created_at as createdAt,
+    s.period1_date as leakDate
+  </sql>
+
+  <select id="selectByUuids" parameterType="List" resultType="Snapshot">
+    SELECT
+      <include refid="snapshotColumns"/>
+    FROM
+      snapshots s
+    WHERE
+      s.uuid in
+      <foreach collection="uuids" item="uuid" separator="," open="(" close=")">
+        #{uuid,jdbcType=VARCHAR}
+      </foreach>
+  </select>
+
+  <select id="selectLastSnapshotByComponentUuid" resultType="Snapshot">
+    select <include refid="snapshotColumns" />
+    from snapshots s
+    inner join components p on s.root_component_uuid = p.branch_uuid
+    where
+      s.islast=${_true}
+      and p.uuid = #{componentUuid,jdbcType=VARCHAR}
+  </select>
+
+  <select id="selectLastAnalysisDateByProject" resultType="long">
+    select max(s.created_at)
+    from snapshots s
+    inner join components p on s.root_component_uuid = p.branch_uuid
+    left join project_branches pb on pb.uuid = p.branch_uuid
+    where
+      s.islast=${_true}
+      and coalesce(pb.project_uuid, p.branch_uuid) = #{projectUuid,jdbcType=VARCHAR}
+  </select>
+
+   <select id="selectLastAnalysisDateByProjectUuids" resultType="org.sonar.db.component.ProjectLastAnalysisDateDto">
+      select
+        pb.project_uuid as project_uuid,
+        max(s.created_at) as last_analysis_date
+      from
+        snapshots s
+      inner join project_branches pb on
+        pb.uuid = s.root_component_uuid
+      where
+        s.islast = ${_true} and pb.project_uuid in
+        <foreach collection="projectUuids" item="projectUuid" separator="," open="(" close=")">
+          #{projectUuid,jdbcType=VARCHAR}
+        </foreach>
+      group by pb.project_uuid
+      union
+      select
+        p.uuid as project_uuid,
+        max(s.created_at) as last_analysis_date
+      from
+        snapshots s
+      inner join portfolios p on
+        p.uuid = s.root_component_uuid
+      where
+        s.islast = ${_true} and p.uuid in
+        <foreach collection="projectUuids" item="projectUuid" separator="," open="(" close=")">
+          #{projectUuid,jdbcType=VARCHAR}
+        </foreach>
+      group by p.uuid
+  </select>
+
+  <select id="selectLastSnapshotByRootComponentUuid" resultType="Snapshot">
+    select <include refid="snapshotColumns" />
+    from snapshots s
+    where s.islast=${_true} and s.root_component_uuid = #{rootComponentUuid,jdbcType=VARCHAR}
+  </select>
+
+  <select id="selectLastSnapshotsByRootComponentUuids" resultType="Snapshot">
+    select <include refid="snapshotColumns" />
+    from snapshots s
+    where
+      s.islast=${_true}
+      and s.root_component_uuid in
+      <foreach collection="rootComponentUuids" item="rootComponentUuid" separator="," open="(" close=")">
+        #{rootComponentUuid,jdbcType=VARCHAR}
+      </foreach>
+  </select>
+
+  <select id="selectSnapshotsByQuery" parameterType="map" resultType="Snapshot">
+    SELECT
+    <include refid="snapshotColumns" />
+    FROM snapshots s
+    <if test="query.rootComponentUuid != null">
+      INNER JOIN components p ON p.uuid=s.root_component_uuid AND p.enabled=${_true} AND s.root_component_uuid=#{query.rootComponentUuid,jdbcType=VARCHAR}
+    </if>
+    <where>
+      <if test="query.status != null">
+        AND s.status IN
+        <foreach collection="query.status" open="(" close=")" item="singleStatus" separator=" , ">
+          #{singleStatus, jdbcType=VARCHAR}
+        </foreach>
+      </if>
+      <if test="query.projectVersion != null">
+        AND s.version=#{query.projectVersion,jdbcType=VARCHAR}
+      </if>
+      <if test="query.isLast != null">
+        AND s.islast=#{query.isLast}
+      </if>
+      <if test="query.createdAfter != null">
+        AND s.created_at>=#{query.createdAfter,jdbcType=BIGINT}
+      </if>
+      <if test="query.createdBefore != null">
+        AND s.created_at&lt;#{query.createdBefore,jdbcType=BIGINT}
+      </if>
+    </where>
+    <if test="query.sortField != null">
+      ORDER BY
+      <if test="query.sortField == 'created_at'">
+        s.created_at
+      </if>
+      <if test="query.sortOrder == 'asc'">
+        asc
+      </if>
+      <if test="query.sortOrder == 'desc'">
+        desc
+      </if>
+    </if>
+  </select>
+
+  <select id="selectFinishedByProjectUuidsAndFromDates" parameterType="map" resultType="Snapshot">
+    select
+    <include refid="snapshotColumns" />
+    from snapshots s
+      inner join components p on p.uuid=s.root_component_uuid and p.enabled=${_true}
+      inner join project_branches pb on pb.uuid=p.uuid
+    where
+      <foreach collection="projectUuidFromDatePairs" open="(" close=")" item="projectUuidFromDatePair" separator=" or ">
+        (pb.project_uuid=#{projectUuidFromDatePair.projectUuid, jdbcType=VARCHAR} and s.created_at >= #{projectUuidFromDatePair.from, jdbcType=BIGINT})
+      </foreach>
+      and s.status = 'P'
+    order by
+      s.created_at
+  </select>
+
+  <select id="selectOldestSnapshots" parameterType="map" resultType="Snapshot">
+    SELECT
+    <include refid="snapshotColumns" />
+    FROM snapshots s
+    <where>
+      and s.root_component_uuid=#{rootComponentUuid,jdbcType=VARCHAR}
+      and s.status = #{status,jdbcType=VARCHAR}
+    </where>
+    ORDER BY s.created_at ASC
+    <include refid="org.sonar.db.common.Common.pagination"/>
+  </select>
+
+  <select id="selectSnapshotBefore" resultType="ViewsSnapshot">
+    SELECT
+    <include refid="viewsSnapshotColumns" />
+    FROM snapshots s
+    <where>
+      and s.root_component_uuid = #{rootComponentUuid,jdbcType=VARCHAR}
+      and s.status = 'P'
+      and s.created_at &lt; #{date,jdbcType=BIGINT}
+    </where>
+    order by created_at desc
+  </select>
+
+  <update id="unsetIsLastFlagForRootComponentUuid" parameterType="map">
+    update snapshots
+    set islast = ${_false}
+    where root_component_uuid = #{rootComponentUuid,jdbcType=VARCHAR}
+    and islast = ${_true}
+  </update>
+
+  <update id="setIsLastFlagForAnalysisUuid" parameterType="map">
+    update snapshots
+    set islast = ${_true}, status = 'P'
+    where uuid = #{analysisUuid,jdbcType=VARCHAR}
+  </update>
+
+  <update id="update" parameterType="Snapshot">
+    update snapshots
+    set version = #{projectVersion, jdbcType=VARCHAR},
+        status = #{status, jdbcType=VARCHAR}
+    where uuid = #{uuid,jdbcType=VARCHAR}
+  </update>
+
+  <insert id="insert" parameterType="Snapshot" useGeneratedKeys="false">
+    insert into snapshots (
+      uuid,
+      root_component_uuid,
+      created_at,
+      analysis_date,
+      status,
+      islast,
+      version,
+      build_string,
+      period1_mode,
+      period1_param,
+      period1_date,
+      revision,
+      purged
+    )
+    values (
+      #{uuid, jdbcType=VARCHAR},
+      #{rootComponentUuid, jdbcType=VARCHAR},
+      #{createdAt, jdbcType=BIGINT},
+      #{analysisDate, jdbcType=BIGINT},
+      #{status, jdbcType=VARCHAR},
+      #{last, jdbcType=BOOLEAN},
+      #{projectVersion, jdbcType=VARCHAR},
+      #{buildString, jdbcType=VARCHAR},
+      #{periodMode, jdbcType=VARCHAR},
+      #{periodParam, jdbcType=VARCHAR},
+      #{periodDate, jdbcType=BIGINT},
+      #{revision, jdbcType=VARCHAR},
+      ${_false}
+    )
+  </insert>
+</mapper>
+

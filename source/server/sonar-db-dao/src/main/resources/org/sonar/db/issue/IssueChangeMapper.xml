@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "mybatis-3-mapper.dtd">
+
+<mapper namespace="org.sonar.db.issue.IssueChangeMapper">
+
+  <sql id="issueChangeColumns">
+    c.uuid,
+    c.kee as kee,
+    c.issue_key as issueKey,
+    c.user_login as userUuid,
+    c.change_type as changeType,
+    c.change_data as changeData,
+    c.created_at as createdAt,
+    c.updated_at as updatedAt,
+    c.project_uuid as projectUuid,
+    c.issue_change_creation_date as issueChangeCreationDate
+  </sql>
+
+  <insert id="insert" useGeneratedKeys="false" parameterType="IssueChange">
+    INSERT INTO issue_changes (kee, uuid, issue_key, user_login, change_type, change_data, created_at, updated_at,
+    issue_change_creation_date, project_uuid)
+    VALUES (#{kee,jdbcType=VARCHAR}, #{uuid,jdbcType=VARCHAR}, #{issueKey,jdbcType=VARCHAR}, #{userUuid,jdbcType=VARCHAR},
+    #{changeType,jdbcType=VARCHAR}, #{changeData,jdbcType=VARCHAR}, #{createdAt,jdbcType=BIGINT},
+    #{updatedAt,jdbcType=BIGINT}, #{issueChangeCreationDate,jdbcType=BIGINT}, #{projectUuid,jdbcType=VARCHAR})
+  </insert>
+
+  <delete id="delete" parameterType="string">
+    delete from issue_changes where kee=#{id}
+  </delete>
+
+  <delete id="deleteByUuids" parameterType="map">
+    delete from issue_changes where uuid in
+    <foreach collection="changeUuids" open="(" close=")" item="changeUuid" separator=",">
+      #{changeUuid, jdbcType=VARCHAR}
+    </foreach>
+  </delete>
+
+  <update id="update" parameterType="map">
+    update issue_changes set change_data=#{changeData}, updated_at=#{updatedAt,jdbcType=BIGINT} where kee=#{kee,jdbcType=VARCHAR}
+  </update>
+
+  <select id="selectByIssuesAndType" parameterType="map" resultType="IssueChange">
+    select
+    <include refid="issueChangeColumns"/>
+    from issue_changes c
+    where c.change_type=#{changeType,jdbcType=VARCHAR} and c.issue_key in
+    <foreach collection="issueKeys" open="(" close=")" item="key" separator=",">
+      #{key,jdbcType=VARCHAR}
+    </foreach>
+    order by c.created_at
+  </select>
+
+  <select id="scrollDiffChangesOfIssues" parameterType="map" resultType="IssueChange" fetchSize="${_scrollFetchSize}" resultSetType="FORWARD_ONLY">
+    select
+      <include refid="issueChangeColumns"/>
+    from issue_changes c
+    where
+      c.change_type='diff'
+      and c.issue_key in
+      <foreach collection="issueKeys" open="(" close=")" item="key" separator=",">
+        #{key,jdbcType=VARCHAR}
+      </foreach>
+    order by
+      c.issue_key,c.issue_change_creation_date desc
+  </select>
+  
+  <select id="selectByIssues" parameterType="map" resultType="IssueChange">
+    select
+    <include refid="issueChangeColumns"/>
+    from issue_changes c
+    where c.issue_key in
+    <foreach collection="issueKeys" open="(" close=")" item="key" separator=",">
+      #{key,jdbcType=VARCHAR}
+    </foreach>
+  </select>
+
+  <select id="selectByKeyAndType" parameterType="map" resultType="IssueChange">
+    select
+    <include refid="issueChangeColumns"/>
+    from issue_changes c
+    where c.change_type=#{changeType,jdbcType=VARCHAR} and c.kee=#{key,jdbcType=VARCHAR}
+  </select>
+
+  <select id="selectByIssue" parameterType="string" resultType="IssueChange">
+    select
+    <include refid="issueChangeColumns"/>
+    from issue_changes c
+    where c.issue_key=#{id,jdbcType=VARCHAR}
+    order by created_at asc
+  </select>
+
+</mapper>
+

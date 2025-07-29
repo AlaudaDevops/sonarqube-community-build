@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "mybatis-3-mapper.dtd">
+
+<mapper namespace="org.sonar.db.property.InternalComponentPropertiesMapper">
+
+  <select id="selectByComponentUuidAndKey" parameterType="map" resultType="org.sonar.db.property.InternalComponentPropertyDto">
+    SELECT
+      p.uuid as uuid,
+      p.component_uuid as componentUuid,
+      p.kee as "key",
+      p.value as value,
+      p.updated_at as updatedAt,
+      p.created_at as createdAt
+    FROM
+      internal_component_props p
+    <where>
+      p.component_uuid = #{componentUuid, jdbcType=VARCHAR}
+      AND p.kee = #{key, jdbcType=VARCHAR}
+    </where>
+  </select>
+
+  <select id="selectDbKeys" parameterType="map" resultType="String">
+    SELECT DISTINCT
+      p.kee
+    FROM
+      internal_component_props icp
+    JOIN
+      components p
+    ON
+      icp.component_uuid = p.uuid
+    <where>
+      icp.kee = #{key, jdbcType=VARCHAR}
+      AND icp.value = #{value, jdbcType=VARCHAR}
+    </where>
+  </select>
+
+  <insert id="insert" parameterType="Map">
+    insert into internal_component_props
+    (
+      uuid,
+      component_uuid,
+      kee,
+      value,
+      updated_at,
+      created_at
+    )
+    values (
+      #{dto.uuid, jdbcType=VARCHAR},
+      #{dto.componentUuid, jdbcType=VARCHAR},
+      #{dto.key, jdbcType=VARCHAR},
+      #{dto.value, jdbcType=VARCHAR},
+      #{dto.updatedAt, jdbcType=BIGINT},
+      #{dto.createdAt, jdbcType=BIGINT}
+    )
+  </insert>
+
+  <update id="update" parameterType="map">
+    update internal_component_props
+    <set>
+      value = #{dto.value, jdbcType=VARCHAR},
+      updated_at = #{dto.updatedAt, jdbcType=BIGINT}
+    </set>
+    <where>
+      component_uuid = #{dto.componentUuid, jdbcType=VARCHAR}
+      AND kee = #{dto.key, jdbcType=VARCHAR}
+    </where>
+  </update>
+
+  <update id="replaceValue" parameterType="map">
+    update internal_component_props
+    <set>
+      value = #{newValue, jdbcType=VARCHAR},
+      updated_at = #{updatedAt, jdbcType=BIGINT}
+    </set>
+    <where>
+      component_uuid = #{componentUuid, jdbcType=VARCHAR}
+      AND kee = #{key, jdbcType=VARCHAR}
+      AND value = #{oldValue, jdbcType=VARCHAR}
+    </where>
+  </update>
+
+  <delete id="deleteByComponentUuidAndKey" parameterType="map">
+    DELETE FROM internal_component_props
+    <where>
+      component_uuid = #{componentUuid, jdbcType=VARCHAR}
+    </where>
+  </delete>
+
+</mapper>

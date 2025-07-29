@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "mybatis-3-mapper.dtd">
+
+<mapper namespace="org.sonar.db.user.GroupMembershipMapper">
+
+  <sql id="commonClauses">
+    FROM groups g
+    LEFT JOIN groups_users gu ON gu.group_uuid=g.uuid AND gu.user_uuid=#{userUuid}
+    <where>
+      <choose>
+        <when test="query.membership() == 'IN'">
+          AND gu.user_uuid IS NOT NULL
+        </when>
+        <when test="query.membership() == 'OUT'">
+          AND gu.user_uuid IS NULL
+        </when>
+      </choose>
+      <if test="query.groupSearch() != null">
+        AND (UPPER(g.name) LIKE #{query.groupSearchSql} ESCAPE '/')
+      </if>
+    </where>
+  </sql>
+
+  <select id="selectGroups" resultType="GroupMembership">
+    SELECT g.uuid as uuid, g.name as name, g.description as description, gu.user_uuid as userUuid
+    <include refid="commonClauses"/>
+    ORDER BY g.name
+    <include refid="org.sonar.db.common.Common.pagination"/>
+  </select>
+
+  <select id="countGroups" parameterType="map" resultType="int">
+    SELECT COUNT(g.uuid)
+    <include refid="commonClauses"/>
+  </select>
+
+  <select id="countUsersByGroup" parameterType="int" resultType="org.sonar.db.user.GroupUserCount">
+    SELECT g.name as groupName, count(gu.user_uuid) as userCount
+    FROM groups g
+    LEFT JOIN groups_users gu ON gu.group_uuid=g.uuid
+    <where>
+      g.uuid in
+      <foreach collection="groupUuids" open="(" close=")" item="uuid" separator=",">
+        #{uuid}
+      </foreach>
+    </where>
+    GROUP BY g.name
+  </select>
+
+    <select id="selectGroupsByLogins" parameterType="string" resultType="org.sonar.db.user.LoginGroup">
+    SELECT u.login as login, g.name as groupName
+    FROM users u
+    LEFT JOIN groups_users gu ON gu.user_uuid=u.uuid
+    INNER JOIN groups g ON gu.group_uuid=g.uuid
+    <where>
+      u.login in
+      <foreach collection="logins" open="(" close=")" item="login" separator=",">
+        #{login}
+      </foreach>
+    </where>
+    ORDER BY u.login, g.name, g.created_at
+  </select>
+
+    <select id="countGroupsByLogins" parameterType="string" resultType="org.sonar.db.user.LoginGroupCount">
+    SELECT u.login as login, count(gu.group_uuid) as groupCount
+    FROM users u
+    LEFT JOIN groups_users gu ON gu.user_uuid=u.uuid
+    <where>
+      u.login in
+      <foreach collection="logins" open="(" close=")" item="login" separator=",">
+        #{login}
+      </foreach>
+    </where>
+      group by g.uuid
+  </select>
+
+  <sql id="userCommonClauses">
+    FROM users u
+    LEFT JOIN groups_users gu ON gu.user_uuid=u.uuid AND gu.group_uuid=#{groupUuid}
+    <where>
+      <choose>
+        <when test="query.membership() == 'IN'">
+          AND gu.group_uuid IS NOT NULL
+        </when>
+        <when test="query.membership() == 'OUT'">
+          AND gu.group_uuid IS NULL
+        </when>
+      </choose>
+      <if test="query.memberSearch() != null">
+        AND (
+          lower(u.name) like #{query.memberSearchSqlLowercase} ESCAPE '/'
+          or u.login like #{query.memberSearchSql} ESCAPE '/'
+          or u.email like #{query.memberSearchSql} ESCAPE '/' )
+      </if>
+      AND u.active=${_true}
+    </where>
+  </sql>
+
+  <select id="selectMembers" resultType="org.sonar.db.user.UserMembershipDto">
+    SELECT u.uuid as uuid, u.login as login, u.name as name, gu.group_uuid as groupUuid
+    <include refid="userCommonClauses"/>
+    ORDER BY u.name ASC
+    <include refid="org.sonar.db.common.Common.pagination"/>
+  </select>
+
+  <select id="countMembers" parameterType="map" resultType="int">
+    SELECT COUNT(u.uuid)
+    <include refid="userCommonClauses"/>
+  </select>
+
+  <select id="selectGroupUuidsByUserUuid" parameterType="map" resultType="string">
+    select group_uuid
+    from groups_users
+    where user_uuid = #{userUuid}
+  </select>
+
+
+</mapper>

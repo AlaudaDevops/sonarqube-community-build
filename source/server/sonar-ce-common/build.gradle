@@ -1,0 +1,65 @@
+description = 'Code relating to the Compute Engine shared between the Compute Engine and the Web Server'
+
+sonar {
+  properties {
+    property 'sonar.projectName', "${projectTitle} :: Compute Engine :: Common"
+  }
+}
+
+sourceSets {
+  test {
+    resources {
+      srcDirs += ['src/test/projects']
+    }
+  }
+}
+
+
+import org.apache.tools.ant.filters.ReplaceTokens
+processResources {
+  filesMatching('build.properties') {
+    filter ReplaceTokens, tokens: [
+      'buildNumber': release ? 'git rev-parse HEAD'.execute().text.trim() : 'N/A'
+    ]
+  }
+}
+
+configurations {
+  testImplementation.extendsFrom compileOnlyApi
+}
+
+dependencies {
+  // please keep the list grouped by configuration and ordered by name
+
+  api 'com.google.guava:guava'
+  api 'org.slf4j:jul-to-slf4j'
+  api 'org.slf4j:slf4j-api'
+  api 'org.sonarsource.api.plugin:sonar-plugin-api'
+  api project(':server:sonar-ce-task')
+  api project(':server:sonar-server-common')
+  api project(':sonar-core')
+
+  compileOnlyApi 'com.github.spotbugs:spotbugs-annotations'
+
+  testImplementation 'com.github.spotbugs:spotbugs-annotations'
+  testImplementation 'com.tngtech.java:junit-dataprovider'
+  testImplementation 'org.apache.commons:commons-lang3'
+  testImplementation 'junit:junit'
+  testImplementation 'org.apache.logging.log4j:log4j-api'
+  testImplementation 'org.apache.logging.log4j:log4j-core'
+  testImplementation 'org.assertj:assertj-core'
+  testImplementation 'org.assertj:assertj-guava'
+  testImplementation 'org.hamcrest:hamcrest'
+  testImplementation 'org.junit.jupiter:junit-jupiter-api'
+  testImplementation 'org.mockito:mockito-core'
+  testImplementation project(':sonar-plugin-api-impl')
+  testImplementation testFixtures(project(':server:sonar-server-common'))
+
+  testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+  testRuntimeOnly 'org.junit.vintage:junit-vintage-engine'
+}
+
+test {
+  // Enabling the JUnit Platform (see https://github.com/junit-team/junit5-samples/tree/master/junit5-migration-gradle)
+  useJUnitPlatform()
+}

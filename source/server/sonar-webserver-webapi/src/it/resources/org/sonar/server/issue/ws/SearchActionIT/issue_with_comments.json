@@ -1,0 +1,45 @@
+{
+  "issues": [
+    {
+      "key": "82fd47d4-b650-4037-80bc-7b112bd4eac2",
+      "comments": [
+        {
+          "key": "COMMENT-ABCD",
+          "login": "john",
+          "htmlText": "\u003cstrong\u003eMy comment\u003c/strong\u003e",
+          "markdown": "*My comment*",
+          "updatable": true,
+          "createdAt": "2014-09-09T14:00:00+0200"
+        },
+        {
+          "key": "COMMENT-ABCE",
+          "login": "fabrice",
+          "htmlText": "Another comment",
+          "markdown": "Another comment",
+          "updatable": false,
+          "createdAt": "2014-09-10T14:00:00+0200"
+        },
+        {
+          "key": "COMMENT-NO-USER",
+          "htmlText": "Another comment without user",
+          "markdown": "Another comment without user",
+          "updatable": false,
+          "createdAt": "2022-09-10T14:00:00+0200"
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "login": "fabrice",
+      "name": "Fabrice",
+      "avatar": "1c7a5823d4ad91e32a88f91242d2c9c2",
+      "active": true
+    },
+    {
+      "login": "john",
+      "name": "John",
+      "active": true
+    }
+  ]
+}

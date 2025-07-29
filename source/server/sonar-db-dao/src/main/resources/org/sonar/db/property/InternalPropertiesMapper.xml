@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "mybatis-3-mapper.dtd">
+
+<mapper namespace="org.sonar.db.property.InternalPropertiesMapper">
+
+  <select id="selectAsText" parameterType="map" resultType="InternalProperty">
+    select
+      kee as "key",
+      is_empty as empty,
+      text_value as value,
+      created_at as createdAt
+    from
+      internal_properties
+    where
+      kee in <foreach collection="keys" open="(" close=")" item="key" separator=",">#{key, jdbcType=VARCHAR}</foreach>
+  </select>
+
+  <select id="selectAsClob" parameterType="map" resultType="InternalProperty">
+    select
+      kee as "key",
+      is_empty as empty,
+      clob_value as value,
+      created_at as createdAt
+    from
+      internal_properties
+    where
+      kee in <foreach collection="keys" open="(" close=")" item="key" separator=",">#{key, jdbcType=VARCHAR}</foreach>
+  </select>
+
+  <insert id="insertAsEmpty" parameterType="Map" useGeneratedKeys="false">
+    INSERT INTO internal_properties
+    (
+      kee, is_empty, created_at
+    )
+    VALUES (
+      #{key,jdbcType=VARCHAR}, ${_true}, #{createdAt,jdbcType=BIGINT}
+    )
+  </insert>
+
+  <insert id="insertAsText" parameterType="Map" useGeneratedKeys="false">
+    INSERT INTO internal_properties
+    (
+      kee,
+      is_empty,
+      text_value,
+      created_at
+    )
+    VALUES (
+      #{key,jdbcType=VARCHAR},
+      ${_false},
+      #{value,jdbcType=VARCHAR},
+      #{createdAt,jdbcType=BIGINT}
+    )
+  </insert>
+
+  <insert id="insertAsClob" parameterType="Map" useGeneratedKeys="false">
+    INSERT INTO internal_properties
+    (
+      kee,
+      is_empty,
+      clob_value,
+      created_at
+    )
+    VALUES (
+      #{key,jdbcType=VARCHAR},
+      ${_false},
+      #{value,jdbcType=VARCHAR},
+      #{createdAt,jdbcType=BIGINT}
+    )
+  </insert>
+
+  <delete id="deleteByKey" parameterType="String">
+    delete from internal_properties
+    where
+      kee=#{key,jdbcType=VARCHAR}
+  </delete>
+
+  <update id="replaceValue" parameterType="Map">
+    UPDATE internal_properties
+    set
+      text_value = #{newValue,jdbcType=VARCHAR}
+    where
+      kee = #{key,jdbcType=VARCHAR}
+      and text_value = #{oldValue,jdbcType=VARCHAR}
+  </update>
+
+</mapper>

@@ -1,0 +1,21 @@
+{
+  "facets": [
+    {
+      "property": "projectUuids",
+      "values": [
+        {
+          "val": "P1",
+          "count": 1
+        },
+        {
+          "val": "P2",
+          "count": 1
+        },
+        {
+          "val": "P3",
+          "count": 1
+        }
+      ]
+    }
+  ]
+}

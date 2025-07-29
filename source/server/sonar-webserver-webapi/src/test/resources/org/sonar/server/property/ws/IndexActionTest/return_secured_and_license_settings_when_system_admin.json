@@ -1,0 +1,10 @@
+[
+  {
+    "key": "secret.secured",
+    "value": "password"
+  },
+  {
+    "key": "foo",
+    "value": "one"
+  }
+]

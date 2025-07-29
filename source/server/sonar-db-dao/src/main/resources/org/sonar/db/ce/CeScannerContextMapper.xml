@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "mybatis-3-mapper.dtd">
+
+<mapper namespace="org.sonar.db.ce.CeScannerContextMapper">
+
+  <delete id="deleteByUuids" parameterType="String">
+    delete from ce_scanner_context
+    where task_uuid in <foreach collection="uuids" open="(" close=")" item="uuid" separator=",">#{uuid,jdbcType=VARCHAR}</foreach>
+  </delete>
+
+  <select id="selectOlderThan" parameterType="long" resultType="String">
+    select
+      task_uuid
+    from ce_scanner_context csc
+    where
+      csc.created_at &lt; #{beforeDate,jdbcType=BIGINT}
+  </select>
+
+
+</mapper>

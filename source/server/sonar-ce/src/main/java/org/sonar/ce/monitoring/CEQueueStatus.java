@@ -1,0 +1,99 @@
+/*
+ * SonarQube
+ * Copyright (C) 2009-2024 SonarSource SA
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.ce.monitoring;
+
+import java.util.Optional;
+import org.sonar.api.ce.ComputeEngineSide;
+
+@ComputeEngineSide
+public interface CEQueueStatus {
+
+  /**
+   * Adds 1 to the count of batch reports under processing and removes 1 from the count of batch reports waiting for
+   * processing.
+   *
+   * @return the new count of batch reports under processing
+   *
+   * @see #getInProgressCount()
+   */
+  long addInProgress();
+
+  /**
+   * Adds 1 to the count of batch reports which processing ended successfully and removes 1 from the count of batch
+   * reports under processing. Adds the specified time to the processing time counter.
+   *
+   * @param processingTime duration of processing in ms
+   *
+   * @return the new count of batch reports which processing ended successfully
+   *
+   * @see #getSuccessCount()
+   * @see #getInProgressCount()
+   *
+   * @throws IllegalArgumentException if processingTime is < 0
+   */
+  long addSuccess(long processingTime);
+
+  /**
+   * Adds 1 to the count of tasks which processing ended with an error and removes 1 from the count of tasks
+   * under processing. Adds the specified time to the processing time counter.
+   *
+   * @param processingTime duration of processing in ms
+   *
+   * @return the new count of tasks which processing ended with an error
+   *
+   * @see #getErrorCount()
+   * @see #getInProgressCount()
+   *
+   * @throws IllegalArgumentException if processingTime is < 0
+   */
+  long addError(long processingTime);
+
+  /**
+   * Number of pending tasks, including tasks received before instance startup.
+   */
+  long getPendingCount();
+
+  /**
+   * The age, in ms, of the oldest pending task.
+   */
+  Optional<Long> getLongestTimePending();
+
+  /**
+   * Count of tasks under processing.
+   */
+  long getInProgressCount();
+
+  /**
+   * Count of tasks which processing ended with an error since instance startup.
+   */
+  long getErrorCount();
+
+  /**
+   * Count of tasks which processing ended successfully since instance startup.
+   */
+  long getSuccessCount();
+
+  /**
+   * Time spent processing tasks since startup, in milliseconds.
+   */
+  long getProcessingTime();
+
+  boolean areWorkersPaused();
+}

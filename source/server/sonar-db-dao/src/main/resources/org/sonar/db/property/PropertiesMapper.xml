@@ -1,0 +1,356 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "mybatis-3-mapper.dtd">
+
+<mapper namespace="org.sonar.db.property.PropertiesMapper">
+
+  <select id="findEmailRecipientsForNotification" parameterType="map" resultType="org.sonar.db.EmailSubscriberDto">
+    SELECT
+      u.login as "login",
+      ${_true} as "global",
+      u.email as "email"
+    FROM
+      users u
+    INNER JOIN properties p ON
+      p.user_uuid = u.uuid
+      and p.prop_key = #{notifKey,jdbcType=VARCHAR}
+      and p.text_value = #{notifValue,jdbcType=VARCHAR}
+      and p.entity_uuid IS NULL
+    WHERE
+      u.email is not null
+      <if test="logins != null">
+        and u.login in <foreach collection="logins" open="(" close=")" item="login" separator=",">#{login,jdbcType=VARCHAR}</foreach>
+      </if>
+
+    <if test="projectKey != null">
+      UNION
+
+      SELECT
+        u.login as "login",
+        ${_false} as "global",
+        u.email as "email"
+      FROM
+        users u
+      INNER JOIN projects proj on
+        proj.kee = #{projectKey,jdbcType=VARCHAR}
+      INNER JOIN properties p ON
+        p.user_uuid = u.uuid
+        and p.prop_key = #{notifKey,jdbcType=VARCHAR}
+        and p.text_value = #{notifValue,jdbcType=VARCHAR}
+        and p.entity_uuid = proj.uuid
+      WHERE
+        u.email is not null
+        <if test="logins != null">
+          and u.login in <foreach collection="logins" open="(" close=")" item="login" separator=",">#{login,jdbcType=VARCHAR}</foreach>
+        </if>
+    </if>
+
+  </select>
+
+  <sql id="columnsToScrapPropertyDto">
+    p.prop_key as "key",
+    p.is_empty as empty,
+    p.text_value as textValue,
+    p.clob_value as clobValue,
+    p.entity_uuid as entityUuid,
+    p.user_uuid as userUuid
+  </sql>
+
+  <select id="selectGlobalProperties" resultType="ScrapProperty">
+    select
+      <include refid="columnsToScrapPropertyDto"/>
+    from
+      properties p
+    where
+      p.entity_uuid is null
+      and p.user_uuid is null
+  </select>
+
+  <select id="selectByKey" parameterType="map" resultType="ScrapProperty">
+    select
+      <include refid="columnsToScrapPropertyDto"/>
+    from
+      properties p
+    where
+      p.prop_key=#{key}
+      <if test="entityUuid == null">
+        and p.entity_uuid is null
+      </if>
+      <if test="entityUuid != null">
+        and p.entity_uuid=#{entityUuid}
+      </if>
+      <if test="userUuid == null">
+        and p.user_uuid is null
+      </if>
+      <if test="userUuid != null">
+        and p.user_uuid=#{userUuid,jdbcType=VARCHAR}
+      </if>
+  </select>
+
+  <select id="selectByKeys" parameterType="map" resultType="ScrapProperty">
+    select
+      <include refid="columnsToScrapPropertyDto"/>
+    from
+      properties p
+    where
+      p.prop_key in
+        <foreach collection="keys" open="(" close=")" item="key" separator=",">
+          #{key}
+        </foreach>
+      and p.entity_uuid is null
+      and p.user_uuid is null
+    order by p.created_at
+  </select>
+
+  <select id="selectByKeysAndEntityUuids" parameterType="map" resultType="ScrapProperty">
+    select
+      <include refid="columnsToScrapPropertyDto"/>
+    from
+      properties p
+    where
+      p.prop_key in
+        <foreach collection="keys" open="(" close=")" item="key" separator=",">
+          #{key}
+        </foreach>
+      and p.entity_uuid in
+        <foreach collection="entityUuids" open="(" close=")" item="entityUuid" separator=",">
+          #{entityUuid}
+        </foreach>
+      and p.user_uuid is null
+  </select>
+
+  <select id="selectByEntityUuids" parameterType="map" resultType="ScrapProperty">
+    select
+      <include refid="columnsToScrapPropertyDto"/>
+    from
+      properties p
+    where
+      p.entity_uuid in
+      <foreach collection="entityUuids" open="(" close=")" item="entityUuid" separator=",">
+        #{entityUuid}
+      </foreach>
+      and p.user_uuid is null
+  </select>
+
+  <select id="selectEntityPropertyByKeyAndUserUuid" parameterType="map" resultType="ScrapProperty">
+    select
+    <include refid="columnsToScrapPropertyDto"/>
+    from
+    properties p
+      inner join projects prj on prj.uuid=p.entity_uuid
+    where
+      p.prop_key = #{key, jdbcType=VARCHAR}
+      and p.user_uuid = #{userUuid, jdbcType=VARCHAR}
+      and prj.uuid is not null
+    UNION ALL
+    select
+    <include refid="columnsToScrapPropertyDto"/>
+    from
+    properties p
+      inner join portfolios por on por.uuid=p.entity_uuid
+    where
+      p.prop_key = #{key, jdbcType=VARCHAR}
+      and p.user_uuid = #{userUuid, jdbcType=VARCHAR}
+      and por.uuid is not null
+  </select>
+
+  <select id="selectProjectPropertyByKey" parameterType="map" resultType="ScrapProperty">
+    select
+    <include refid="columnsToScrapPropertyDto"/>
+    from properties p
+      inner join projects prj on prj.uuid=p.entity_uuid
+    where
+      p.prop_key = #{key, jdbcType=VARCHAR}
+      and p.user_uuid is null
+  </select>
+
+  <select id="selectByQuery" parameterType="map" resultType="ScrapProperty">
+    select
+      <include refid="columnsToScrapPropertyDto"/>
+    from
+      properties p
+    <where>
+      <if test="query.key() != null">
+        and p.prop_key=#{query.key,jdbcType=VARCHAR}
+      </if>
+      <if test="query.entityUuid() != null">
+        and p.entity_uuid=#{query.entityUuid,jdbcType=BIGINT}
+      </if>
+      <if test="query.userUuid() != null">
+        and p.user_uuid=#{query.userUuid,jdbcType=VARCHAR}
+      </if>
+    </where>
+  </select>
+
+  <select id="selectByKeyAndMatchingValue" parameterType="map" resultType="ScrapProperty">
+    select
+      <include refid="columnsToScrapPropertyDto"/>
+    from properties p
+    <where>
+      p.prop_key = #{key,jdbcType=VARCHAR}
+      and p.text_value like #{value,jdbcType=VARCHAR}
+    </where>
+  </select>
+
+  <insert id="insertAsEmpty" parameterType="Map" useGeneratedKeys="false">
+    insert into properties
+    (
+      uuid,
+      prop_key,
+      entity_uuid,
+      user_uuid,
+      is_empty,
+      created_at
+    )
+    values (
+      #{uuid},
+      #{key},
+      #{entityUuid},
+      #{userUuid,jdbcType=VARCHAR},
+      ${_true},
+      #{now}
+    )
+  </insert>
+
+  <insert id="insertAsText" parameterType="Map" useGeneratedKeys="false">
+    insert into properties
+    (
+      uuid,
+      prop_key,
+      entity_uuid,
+      user_uuid,
+      is_empty,
+      text_value,
+      created_at
+    )
+    values (
+      #{uuid},
+      #{key},
+      #{entityUuid},
+      #{userUuid,jdbcType=VARCHAR},
+      ${_false},
+      #{value},
+      #{now}
+    )
+  </insert>
+
+  <insert id="insertAsClob" parameterType="Map" useGeneratedKeys="false">
+   insert into properties
+    (
+      uuid,
+      prop_key,
+      entity_uuid,
+      user_uuid,
+      is_empty,
+      clob_value,
+      created_at
+    )
+    values (
+      #{uuid},
+      #{key},
+      #{entityUuid},
+      #{userUuid,jdbcType=VARCHAR},
+      ${_false},
+      #{value},
+      #{now}
+    )
+  </insert>
+
+  <delete id="delete" parameterType="map">
+    delete from properties
+    where
+      prop_key=#{key}
+    <choose>
+      <when test="entityUuid != null &amp;&amp; userUuid != null">
+        and entity_uuid=#{entityUuid}
+        and user_uuid=#{userUuid,jdbcType=VARCHAR}
+      </when>
+      <when test="entityUuid != null">
+        and entity_uuid=#{entityUuid}
+        and user_uuid is null
+      </when>
+      <when test="userUuid != null">
+        and entity_uuid is null
+        and user_uuid=#{userUuid,jdbcType=VARCHAR}
+      </when>
+      <otherwise>
+        and entity_uuid is null
+        and user_uuid is null
+      </otherwise>
+    </choose>
+  </delete>
+
+  <delete id="deleteProjectProperty" parameterType="map">
+    delete from properties
+    where
+      prop_key=#{key}
+      and entity_uuid=#{entityUuid}
+      and user_uuid is null
+  </delete>
+
+  <delete id="deleteGlobalProperty" parameterType="string">
+    delete from properties
+    where
+      prop_key=#{key}
+      and entity_uuid is null
+      and user_uuid is null
+  </delete>
+
+  <delete id="deleteGlobalProperties">
+    delete from properties
+    where
+      entity_uuid is null
+      and user_uuid is null
+  </delete>
+
+  <delete id="deleteByQuery">
+    delete from properties
+    <where>
+      <if test="query.key() != null">
+        and prop_key=#{query.key,jdbcType=VARCHAR}
+      </if>
+      <if test="query.entityUuid() != null">
+        and entity_uuid=#{query.entityUuid,jdbcType=BIGINT}
+      </if>
+      <if test="query.userUuid() != null">
+        and user_uuid=#{query.userUuid,jdbcType=VARCHAR}
+      </if>
+    </where>
+  </delete>
+
+  <delete id="deleteByKeyAndValue" parameterType="map">
+    DELETE FROM properties
+    <where>
+      AND prop_key = #{key,jdbcType=VARCHAR}
+      AND text_value LIKE #{value,jdbcType=VARCHAR}
+    </where>
+  </delete>
+
+  <delete id="deleteByUuids" parameterType="String">
+    delete from properties
+    where
+    uuid in
+    <foreach collection="uuids" open="(" close=")" item="uuid" separator=",">
+      #{uuid}
+    </foreach>
+  </delete>
+
+  <select id="selectByUuids" parameterType="map" resultType="ScrapProperty">
+    select
+      <include refid="columnsToScrapPropertyDto"/>
+    from
+      properties p
+    where
+      uuid in
+    <foreach collection="uuids" open="(" close=")" item="uuid" separator=",">
+      #{uuid}
+    </foreach>
+  </select>
+
+  <update id="renamePropertyKey" parameterType="map">
+    update properties set
+      prop_key=#{newKey}
+    where
+      prop_key=#{oldKey}
+  </update>
+
+</mapper>

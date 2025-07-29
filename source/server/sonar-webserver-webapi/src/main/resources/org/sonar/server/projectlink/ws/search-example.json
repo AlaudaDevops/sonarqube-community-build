@@ -1,0 +1,16 @@
+{
+  "links": [
+    {
+      "id": "1",
+      "name": "Homepage",
+      "type": "homepage",
+      "url": "http://example.org"
+    },
+    {
+      "id": "2",
+      "name": "Custom",
+      "type": "custom",
+      "url": "http://example.org/custom"
+    }
+  ]
+}

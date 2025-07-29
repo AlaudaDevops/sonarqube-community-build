@@ -1,0 +1,17 @@
+{
+  "identityProviders": [
+    {
+      "key": "bitbucket",
+      "name": "Bitbucket",
+      "iconPath": "/static/authbitbucket/bitbucket.svg",
+      "backgroundColor": "#205081",
+      "helpMessage": "You need an existing account on bitbucket.com"
+    },
+    {
+      "key": "github",
+      "name": "Github",
+      "iconPath": "/static/authgithub/github.svg",
+      "backgroundColor": "#444444"
+    }
+  ]
+}

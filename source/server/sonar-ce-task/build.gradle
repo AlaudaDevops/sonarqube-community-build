@@ -1,0 +1,56 @@
+description = 'Definition of a Compute Engine task and utility "framework" and classes to code one'
+
+sonar {
+  properties {
+    property 'sonar.projectName', "${projectTitle} :: Compute Engine :: Task"
+  }
+}
+
+sourceSets {
+  test {
+    resources {
+      srcDirs += ['src/test/projects']
+    }
+  }
+}
+
+dependencies {
+  // please keep the list grouped by configuration and ordered by name
+
+  api 'com.google.guava:guava'
+  api 'org.slf4j:jul-to-slf4j'
+  api 'org.slf4j:slf4j-api'
+
+  api project(':server:sonar-server-common')
+  api project(':sonar-core')
+
+  compileOnlyApi 'com.github.spotbugs:spotbugs-annotations'
+  compileOnlyApi 'org.sonarsource.api.plugin:sonar-plugin-api'
+
+  testImplementation 'ch.qos.logback.access:logback-access-tomcat'
+  testImplementation 'ch.qos.logback:logback-classic'
+  testImplementation 'ch.qos.logback:logback-core'
+  testImplementation 'com.github.spotbugs:spotbugs-annotations'
+  testImplementation 'com.tngtech.java:junit-dataprovider'
+  testImplementation 'junit:junit'
+  testImplementation 'org.apache.logging.log4j:log4j-api'
+  testImplementation 'org.apache.logging.log4j:log4j-core'
+  testImplementation 'org.assertj:assertj-guava'
+  testImplementation 'org.junit.jupiter:junit-jupiter-api'
+  testImplementation 'org.mockito:mockito-core'
+  testImplementation 'org.reflections:reflections'
+  testImplementation 'org.sonarsource.api.plugin:sonar-plugin-api-test-fixtures'
+  testImplementation testFixtures(project(':server:sonar-db-dao'))
+
+  testFixturesApi 'org.assertj:assertj-core'
+
+  testFixturesCompileOnly 'com.github.spotbugs:spotbugs-annotations'
+
+  testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+  testRuntimeOnly 'org.junit.vintage:junit-vintage-engine'
+}
+
+test {
+  // Enabling the JUnit Platform (see https://github.com/junit-team/junit5-samples/tree/master/junit5-migration-gradle)
+  useJUnitPlatform()
+}

@@ -1,0 +1,9 @@
+{
+  "showUpdateCenter": true,
+  "extensions": [
+    {
+      "name": "Sample",
+      "url": "/plugins/configuration/sample"
+    }
+  ]
+}

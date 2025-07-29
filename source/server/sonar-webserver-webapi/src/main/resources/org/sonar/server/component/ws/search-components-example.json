@@ -1,0 +1,15 @@
+{
+  "paging": {
+    "pageIndex": 1,
+    "pageSize": 100,
+    "total": 1
+  },
+  "components": [
+    {
+      "key": "project-key",
+      "qualifier": "TRK",
+      "name": "Project Name",
+      "project": "project-key"
+    }
+  ]
+}

@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "mybatis-3-mapper.dtd">
+<mapper namespace="org.sonar.db.event.EventMapper">
+
+  <sql id="eventColumns">
+    e.uuid,
+    e.analysis_uuid as "analysisUuid",
+    e.component_uuid as "componentUuid",
+    e.name,
+    e.category,
+    e.description,
+    e.event_data as "data",
+    e.event_date as "date",
+    e.created_at as "createdAt"
+  </sql>
+
+  <select id="selectByUuid" parameterType="String" resultType="Event">
+    SELECT
+    <include refid="eventColumns"/>
+    FROM events e
+    <where>
+      AND e.uuid=#{uuid}
+    </where>
+  </select>
+
+  <select id="selectByComponentUuid" parameterType="String" resultType="Event">
+    SELECT
+    <include refid="eventColumns"/>
+    FROM events e
+    <where>
+      AND e.component_uuid=#{uuid}
+    </where>
+  </select>
+
+  <select id="selectByAnalysisUuid" parameterType="String" resultType="Event">
+    SELECT
+    <include refid="eventColumns"/>
+    FROM events e
+    <where>
+      AND e.analysis_uuid=#{analysisUuid}
+    </where>
+  </select>
+
+  <select id="selectByAnalysisUuids" parameterType="String" resultType="Event">
+    SELECT
+    <include refid="eventColumns"/>
+    FROM events e
+    <where>
+      AND e.analysis_uuid in <foreach collection="analysisUuids" open="(" close=")" item="analysisUuid" separator=",">#{analysisUuid}</foreach>
+    </where>
+  </select>
+
+  <select id="selectVersions" resultType="Event" parameterType="map">
+    select
+      <include refid="eventColumns"/>
+    from events e
+    inner join snapshots s on
+      s.uuid = e.analysis_uuid
+      and s.status = 'P'
+      and s.root_component_uuid = #{componentUuid,jdbcType=VARCHAR}
+    where
+      e.category = 'Version'
+    order by
+      e.event_date desc
+  </select>
+
+    <select id="selectSqUpgrades" resultType="Event" parameterType="map">
+    select
+      <include refid="eventColumns"/>
+    from events e
+    inner join snapshots s on
+      s.uuid = e.analysis_uuid
+      and s.status = 'P'
+      and s.root_component_uuid = #{componentUuid,jdbcType=VARCHAR}
+    where
+      e.category = 'SQ Upgrade'
+    order by
+      e.event_date desc
+  </select>
+
+  <insert id="insert" parameterType="Event">
+    INSERT INTO events (uuid, analysis_uuid, component_uuid, name, category, description, event_data, event_date, created_at)
+    VALUES (
+      #{uuid, jdbcType=VARCHAR},
+      #{analysisUuid, jdbcType=VARCHAR},
+      #{componentUuid, jdbcType=VARCHAR},
+      #{name, jdbcType=VARCHAR},
+      #{category, jdbcType=VARCHAR},
+      #{description, jdbcType=VARCHAR},
+      #{data, jdbcType=VARCHAR},
+      #{date, jdbcType=BIGINT},
+      #{createdAt, jdbcType=BIGINT})
+  </insert>
+
+  <update id="update" parameterType="map">
+    update events
+    set name = #{name, jdbcType=VARCHAR},
+        description = #{description, jdbcType=VARCHAR}
+    where uuid = #{uuid}
+  </update>
+
+  <delete id="deleteByUuid" parameterType="String">
+    DELETE FROM events WHERE uuid=#{uuid}
+  </delete>
+
+</mapper>
+
