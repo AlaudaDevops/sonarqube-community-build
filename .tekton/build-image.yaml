@@ -1,0 +1,80 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: sonar-image
+  annotations:
+    pipelinesascode.tekton.dev/on-comment: "^((/test-all)|(/build-image))"
+    pipelinesascode.tekton.dev/on-cel-expression: |-
+      target_branch.matches("^(main|release-.*|alauda-.*)$") &&
+      !last_commit_title.contains("Auto-commit") &&
+      (
+        "source/**".pathChanged() ||
+        "image/**".pathChanged() ||
+        ".tekton/sonar-image.yaml".pathChanged() ||
+        ".tekton/pipeline/sonar-image-build".pathChanged()
+      )
+    pipelinesascode.tekton.dev/max-keep-runs: "5"
+spec:
+  timeouts:
+    pipeline: "2h"
+
+  pipelineRef:
+    name: sonar-image-build
+
+  params:
+    - name: git-revision
+      value:
+        url: "{{ repo_url }}"
+        branch: "{{ source_branch }}"
+        commit: "{{ revision }}"
+    - name: clean-cache
+      value: "{{ clean-cache }}"
+
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteMany
+          resources:
+            requests:
+              storage: 2Gi
+    - name: basic-auth
+      secret:
+        secretName: github-credentials
+    - name: dockerconfig
+      secret:
+        secretName: build-harbor.kauto.docfj
+    - name: cache
+      persistentVolumeClaim:
+        claimName: sonar-build-cache
+
+
+  taskRunTemplate:
+    # 让所有任务都以非 root 用户运行。
+    podTemplate:
+      securityContext:
+        fsGroup: 65532
+        fsGroupChangePolicy: "OnRootMismatch"
+
+  taskRunSpecs:
+    - pipelineTaskName: build-sonar-app
+      computeResources:
+        limits:
+          cpu: "6"
+          memory: 6Gi
+    - pipelineTaskName: build-sonar-image
+      computeResources:
+        limits:
+          cpu: "2"
+          memory: 2Gi
+    - pipelineTaskName: build-sonar-plugin-image
+      computeResources:
+        limits:
+          cpu: "4"
+          memory: 4Gi
+    - pipelineTaskName: image-scan
+      computeResources:
+        limits:
+          cpu: "4"
+          memory: 4Gi

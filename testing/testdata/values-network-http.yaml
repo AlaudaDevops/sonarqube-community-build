@@ -1,0 +1,4 @@
+ingress:
+  enabled: true
+  hosts:
+    - name: test-sonarqube-ingress-http.example.com

@@ -107,7 +107,12 @@ allprojects {
         url "${artifactoryUrl}/sonarsource-qa"
       }
     } else {
-      mavenCentral()
+      // Use Nexus proxy if configured, otherwise use Maven Central
+      if (project.hasProperty('nexusProxyUrl')) {
+        maven { url project.nexusProxyUrl }
+      } else {
+        mavenCentral()
+      }
       maven {
         url 'https://jitpack.io'
       }

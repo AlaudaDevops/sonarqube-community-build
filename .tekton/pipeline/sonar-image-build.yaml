@@ -1,0 +1,389 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: sonar-image-build
+spec:
+  workspaces:
+    - name: source
+      description: "Workspace for storing source code"
+    - name: basic-auth
+      description: "Workspace for git basic authentication"
+    - name: dockerconfig
+      description: "Workspace for Docker configuration"
+    - name: cache
+      description: "Workspace for cache files"
+  params:
+    - name: git-revision
+      description: Git revision object with url, branch, commit, and pull-request-number.
+      type: object
+      properties:
+        url: {}
+        branch: {}
+        commit: {}
+    - name: image-scan-gate-enabled
+      description: Determine whether to skip the image scan step
+      type: string
+      default: "false"
+    - name: jdk-image-version
+      type: string
+      default: "17.0.14_7-jdk-jammy"
+    - name: sonarqube-version
+      type: string
+      default: "25.1.0.102122"
+    - name: clean-cache
+      type: string
+      default: "false"
+  tasks:
+    # git-clone
+    - name: git-clone
+      params:
+        - name: url
+          value: $(params.git-revision.url)
+        - name: revision
+          value: $(params.git-revision.branch)
+        - name: depth
+          value: 1
+      taskRef:
+        resolver: hub
+        params:
+          - name: catalog
+            value: catalog
+          - name: kind
+            value: task
+          - name: name
+            value: git-clone
+          - name: version
+            value: "0.9"
+      timeout: 10m0s
+      workspaces:
+        - name: output
+          workspace: source
+        - name: basic-auth
+          workspace: basic-auth
+    - name: get-git-meta
+      timeout: 10m
+      retries: 0
+      runAfter:
+        - git-clone
+      params:
+        - name: image
+          value: registry.alauda.cn:60080/devops/nonroot/chainguard/git:latest
+        - name: imagePullPolicy
+          value: Always
+        - name: script
+          value: |
+            #!/bin/bash
+            set -e
+
+            # Add the source directory to the safe.directory list
+            git config --global --add safe.directory $(workspaces.source.path)
+
+
+            cat <<EOF > $(results.object-result.path)
+            {
+              "commit_date": "$(git log -1 --pretty=%ct)",
+              "commit_sha": "$(git rev-parse HEAD)",
+              "short_id": "$(git rev-parse --short HEAD)",
+              "message": "gitlab commit meta"
+            }
+            EOF
+      taskRef:
+        resolver: hub
+        params:
+          - name: catalog
+            value: catalog
+          - name: kind
+            value: task
+          - name: name
+            value: run-script
+          - name: version
+            value: "0.1"
+      workspaces:
+        - name: source
+          workspace: source
+    - name: build-sonar-app
+      timeout: 60m
+      retries: 0
+      runAfter:
+        - git-clone
+      params:
+        - name: image
+          value: docker-mirrors.alauda.cn/library/eclipse-temurin:$(params.jdk-image-version)
+        - name: imagePullPolicy
+          value: Always
+        - name: script
+          value: |
+            #!/bin/bash
+            set -e
+
+            ln -s $(workspaces.cache.path)/cache $HOME/.gradle
+
+            if [ "$(params.clean-cache)" == "true" ]; then
+              rm -rf $HOME/.gradle/caches/*
+            fi
+
+            # source: https://github.com/SonarSource/sonarqube/blob/170bd61e5e75fb3668dd31dc71570f5e40a800fd/.cirrus/Dockerfile#L1
+            export DEBIAN_FRONTEND=noninteractive
+
+            echo 'Acquire::AllowReleaseInfoChange::Suite "true";' > /etc/apt/apt.conf.d/allow_release_info_change.conf
+
+            # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=863199#23
+            mkdir -p /usr/share/man/man1
+            apt-get update
+            apt-get -y install --no-install-recommends \
+              lsb-release \
+              ca-certificates \
+              curl \
+              wget \
+              gnupg
+
+            export NODE_MAJOR=18
+            export DISTRO="$(lsb_release -s -c)"
+            curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+            echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" >> /etc/apt/sources.list.d/nodesource.list
+            curl -sSL https://packages.atlassian.com/api/gpg/key/public | gpg --dearmor -o /etc/apt/keyrings/atlassian.gpg
+            echo "deb [signed-by=/etc/apt/keyrings/atlassian.gpg] https://packages.atlassian.com/debian/atlassian-sdk-deb/ stable contrib" >> /etc/apt/sources.list.d/atlassian-sdk.list
+            curl -sSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /etc/apt/keyrings/adoptium-archive-keyring.gpg
+            echo "deb [signed-by=/etc/apt/keyrings/adoptium-archive-keyring.gpg] https://packages.adoptium.net/artifactory/deb $DISTRO main" >> /etc/apt/sources.list.d/adoptopenjdk.list
+            apt-get update
+            apt-get -y install --no-install-recommends \
+              git \
+              unzip \
+              nodejs="$NODE_MAJOR".* \
+              jq \
+              expect \
+              temurin-8-jdk \
+              xmlstarlet
+            npm install -g yarn
+
+            sed -i 's|securerandom.source=file:/dev/random|securerandom.source=file:/dev/urandom|g' "$JAVA_HOME/conf/security/java.security"
+
+            export SONARQUBE_VERSION=$(params.sonarqube-version)
+            export BUILD_NUMBER="${SONARQUBE_VERSION##*.}"
+
+            # Add the source directory to the safe.directory list
+            git config --global --add safe.directory $(workspaces.source.path)
+
+            cd $(workspaces.source.path)/source
+            ./gradlew clean build -DbuildNumber="$BUILD_NUMBER" -x test --console plain --max-workers=4 --build-cache --info;
+
+            ls -alh sonar-application/build/distributions
+      workspaces:
+        - name: source
+          workspace: source
+        - name: cache
+          workspace: cache
+      taskSpec:
+        workspaces:
+        - name: source
+        - name: cache
+        params:
+          - name: image
+            type: string
+            default: docker-mirrors.alauda.cn/library/eclipse-temurin:17.0.14_7-jdk-jammy
+          - name: imagePullPolicy
+            type: string
+            default: Always
+          - name: script
+            description: >-
+                Customized script to execute.
+                The task will enforce running the script as a non-root user.
+                If the image used in this task defaults to starting with the root user,
+                additional configuration will be required to set up a non-root user.
+                Please refer to the task's README.md document for details.
+            type: string
+            default:
+        steps:
+          - name: run-script
+            image: "$(params.image)"
+            imagePullPolicy: "$(params.imagePullPolicy)"
+            computeResources:
+              requests:
+                cpu: "1"
+                memory: "1Gi"
+              limits:
+                cpu: "4"
+                memory: "4Gi"
+            script: |
+              #!/bin/sh
+              RUN_ON=`cat /proc/$$/comm`
+              if [ "$RUN_ON" != "bash" ] && command -v bash >/dev/null 2>&1; then
+                  exec bash "$0" $@
+              fi
+              set -eu
+
+              $(params.script)
+
+    - name: build-sonar-image
+      timeout: 1h
+      retries: 2
+      taskRef:
+        resolver: hub
+        params:
+          - name: catalog
+            value: extras
+          - name: kind
+            value: task
+          - name: name
+            value: buildx
+          - name: version
+            value: "0.1"
+      runAfter:
+        - build-sonar-app
+      workspaces:
+        - name: source
+          workspace: source
+        - name: dockerconfig
+          workspace: dockerconfig
+      params:
+        - name: reuse-artifact
+          value: "true"
+        - name: buildx-image
+          value: registry.alauda.cn:60080/devops/nonroot/alauda-docker-buildx:latest
+        - name: image-url
+          value: build-harbor.alauda.cn/devops/sonarqube
+        - name: image-tags
+          value:
+            - v2025.1.0-g$(tasks.get-git-meta.results.object-result.short_id)
+        - name: dockerfile
+          value: image/community-build/Dockerfile
+        - name: context
+          value: .
+        - name: build-args
+          value:
+            - --build-arg SONARQUBE_VERSION=$(params.sonarqube-version)
+    - name: build-sonar-plugin-image
+      timeout: 1h
+      retries: 2
+      taskRef:
+        resolver: hub
+        params:
+          - name: catalog
+            value: extras
+          - name: kind
+            value: task
+          - name: name
+            value: buildx
+          - name: version
+            value: "0.1"
+      runAfter:
+        - git-clone
+      workspaces:
+        - name: source
+          workspace: source
+        - name: dockerconfig
+          workspace: dockerconfig
+      params:
+        - name: reuse-artifact
+          value: "true"
+        - name: buildx-image
+          value: registry.alauda.cn:60080/devops/nonroot/alauda-docker-buildx:latest
+        - name: image-url
+          value: build-harbor.alauda.cn/devops/sonarqube-plugins
+        - name: image-tags
+          value:
+            - v2025.1.0-g$(tasks.get-git-meta.results.object-result.short_id)
+        - name: dockerfile
+          value: image/plugin/Dockerfile
+        - name: context
+          value: image/plugin
+    - name: image-scan
+      timeout: 60m
+      retries: 2
+      taskRef:
+        resolver: katanomi.hub
+        params:
+          - name: kind
+            value: task
+          - name: name
+            value: trivy-image-scan
+      workspaces:
+        - name: source
+          workspace: source
+      params:
+        - name: targets-result-limit
+          value: 6
+        - name: targets
+          value:
+            - $(tasks.build-sonar-image.results.image-digests[0])
+            - $(tasks.build-sonar-plugin-image.results.image-digests[0])
+        - name: quality-gate-rules
+          value:
+            - severity=High
+        - name: quality-gate
+          value: "$(params.image-scan-gate-enabled)"
+        - name: scan-flags
+          value:
+            - timeout=30m
+            - vulnerability.ignore-unfixed=true
+            - db.skip-update=false
+            - db.repository=build-harbor.alauda.cn/ops/aquasecurity/trivy-db
+    - name: update-chart-values
+      timeout: 5m
+      retries: 2
+      runAfter:
+        - image-scan
+      taskRef:
+        resolver: hub
+        params:
+          - name: catalog
+            value: extras
+          - name: kind
+            value: task
+          - name: name
+            value: git-cli
+          - name: version
+            value: "0.4"
+      workspaces:
+        - name: source
+          workspace: source
+        - name: basic-auth
+          workspace: basic-auth
+      params:
+        - name: BASE_IMAGE
+          value: registry.alauda.cn:60080/devops/nonroot/chainguard/git:latest
+        - name: GIT_USER_NAME
+          value: "Alauda Bot"
+        - name: GIT_USER_EMAIL
+          value: "alaudabot@alauda.io"
+        - name: USER_HOME
+          value: "/home/git"
+        - name: VERBOSE
+          value: "true"
+        - name: GIT_SCRIPT
+          value: |-
+            set -ex
+
+            cd $(workspaces.source.path)
+            git config --global --add safe.directory $(workspaces.source.path)
+
+            images=(
+              $(tasks.build-sonar-image.results.image-digests[0])
+              $(tasks.build-sonar-plugin-image.results.image-digests[0])
+            )
+
+            for image in "${images[@]}"; do
+              echo "===> update chart values $image"
+              bash ./hack/update-image-tag.sh $image chart/values.yaml
+            done
+
+            git status
+
+            # check if the chart values is changed
+            if git diff --quiet -- chart/values.yaml; then
+              echo "No changes to commit"
+              git status
+              exit 0
+            fi
+
+            git add chart/values.yaml
+            git checkout .
+
+            COMMIT_MESSAGE="Auto-commit by alaudabot in edge [ci skip] - $(context.taskRun.namespace)/$(context.taskRun.name)"
+
+            # Commit the changes
+            git-push-commit.sh \
+              --revision $(params.git-revision.branch) \
+              --source-path $(workspaces.source.path) \
+              --output-path $(results.commit.path) \
+              --message "${COMMIT_MESSAGE}"

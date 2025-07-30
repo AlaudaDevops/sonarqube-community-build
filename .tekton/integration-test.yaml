@@ -1,0 +1,119 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: sonar-integration-test
+  annotations:
+    # pipelinesascode.tekton.dev/on-comment: "^((/test-all)|(/integration-test))"
+    # pipelinesascode.tekton.dev/on-cel-expression: |-
+    #   target_branch.matches("^(main|release-.*|alauda-.*)$") &&
+    #   (
+    #     "chart/**".pathChanged() ||
+    #     "testing/**".pathChanged()
+    #   )
+    # pipelinesascode.tekton.dev/max-keep-runs: "5"
+spec:
+  taskRunTemplate:
+    podTemplate:
+      securityContext:
+        fsGroup: 65532
+        fsGroupChangePolicy: "OnRootMismatch"
+  taskRunSpecs:
+    - pipelineTaskName: run-test
+      computeResources:
+        limits:
+          cpu: "4"
+          memory: 4Gi
+  timeouts:
+    pipeline: 5h
+    tasks: 5h
+  pipelineRef:
+    resolver: hub
+    params:
+      - name: catalog
+        value: alauda
+      - name: type
+        value: tekton
+      - name: kind
+        value: pipeline
+      - name: name
+        value: vcluster-integration-test
+      - name: version
+        value: "0.2"
+
+  params:
+    - name: git-revision
+      value:
+        url: "{{ repo_url }}"
+        branch: "{{ source_branch }}"
+        commit: "{{ revision }}"
+    - name: build-test-image
+      value:
+        image-repository: build-harbor.alauda.cn/devops/sonarqube-ce-test
+        dockerfile-path: testing/Dockerfile
+    - name: test
+      value:
+        command: |
+          set -x
+          export KUBECONFIG=$(workspaces.config.path)/vcluster-config
+          kubectl config view
+
+          trap 'chmod -R a+r allure-results/* && mkdir -p $(workspaces.source.path)/testing/allure-results && cp -r allure-results/* $(workspaces.source.path)/testing/allure-results/' EXIT
+          echo "run integration tests..."
+          export REPORT=allure
+          export TAGS='@sonarqube-chart-deploy'
+          make test
+    - name: vcluster
+      value:
+        custom-config: |
+          sync:
+            toHost:
+              ingresses:
+                enabled: true
+            fromHost:
+              storageClasses:
+                enabled: true
+              ingressClasses:
+                enabled: true
+    - name: report
+      value:
+        command: |
+          cd $(workspaces.source.path)/testing
+          allure generate --clean
+
+          echo "Listing contents of report directory"
+          ls -al
+        path: testing/allure-report
+  workspaces:
+    - name: kube-config
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteMany
+          resources:
+            requests:
+              storage: 50Mi
+    - name: cache
+      persistentVolumeClaim:
+        claimName: build-cache
+      subPath: golang
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteMany
+          resources:
+            requests:
+              storage: 1Gi
+    - name: upload-conf
+      secret:
+        secretName: upload-allure-report-conf
+    - name: dockerconfig
+      secret:
+        secretName: build-harbor.kauto.docfj
+    - name: basic-auth
+      secret:
+        secretName: github-credentials
+    - name: gitversion-config
+      configMap:
+        name: gitversion-config
+
