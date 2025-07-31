@@ -6,7 +6,7 @@
   "baseBranches": [
     "alauda-2025.1.0"
   ],
-  "enabledManagers": ["dockerfile", "regex", "gradle-wrapper"],
+  "enabledManagers": ["dockerfile", "regex", "gradle", "gradle-wrapper", "maven"],
   "ignorePaths": [
     "**/testdata/**",
     "source/.cirrus/**",
@@ -50,21 +50,5 @@
     "org.sonarsource.iac:sonar-iac-plugin"
   ],
   "labels": ["dependencies"],
-  "postUpdateOptions": ["gomodTidy"],
-  "packageRules": [
-    {
-      "matchManagers": ["gradle-wrapper", "gradle"],
-      "enabled": true
-    },
-    {
-      "matchManagers": ["gradle-wrapper", "gradle"],
-      "updateTypes": ["patch"],
-      "enabled": true
-    },
-    {
-      "matchManagers": ["gradle-wrapper", "gradle"],
-      "updateTypes": ["major", "minor"],
-      "enabled": false
-    }
-  ]
+  "postUpdateOptions": ["gomodTidy"]
 }
