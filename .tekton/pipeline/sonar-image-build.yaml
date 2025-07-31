@@ -24,9 +24,6 @@ spec:
       description: Determine whether to skip the image scan step
       type: string
       default: "false"
-    - name: jdk-image-version
-      type: string
-      default: "17.0.14_7-jdk-jammy"
     - name: sonarqube-version
       type: string
       default: "25.1.0.102122"
@@ -107,10 +104,6 @@ spec:
       runAfter:
         - git-clone
       params:
-        - name: image
-          value: docker-mirrors.alauda.cn/library/eclipse-temurin:$(params.jdk-image-version)
-        - name: imagePullPolicy
-          value: Always
         - name: script
           value: |
             #!/bin/bash
@@ -178,12 +171,6 @@ spec:
         - name: source
         - name: cache
         params:
-          - name: image
-            type: string
-            default: docker-mirrors.alauda.cn/library/eclipse-temurin:17.0.14_7-jdk-jammy
-          - name: imagePullPolicy
-            type: string
-            default: Always
           - name: script
             description: >-
                 Customized script to execute.
@@ -195,8 +182,9 @@ spec:
             default:
         steps:
           - name: run-script
-            image: "$(params.image)"
-            imagePullPolicy: "$(params.imagePullPolicy)"
+            # renovate: datasource=docker depName=eclipse-temurin
+            image: docker-mirrors.alauda.cn/library/eclipse-temurin:17.0.15_6-jdk-jammy
+            imagePullPolicy: Always
             computeResources:
               requests:
                 cpu: "1"
