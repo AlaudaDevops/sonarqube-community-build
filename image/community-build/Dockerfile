@@ -28,9 +28,9 @@ RUN mkdir -p /data/patches \
   && ls -al /data/sonarqube
 
 COPY --chown=sonarsource:sonarsource image/community-build/apply-jar-patch.sh /tmp/apply-jar-patch.sh
-# renovate: datasource=maven depName=net.minidev/json-smart
+# renovate: datasource=maven depName=json-smart lookupName=net.minidev:json-smart
 ARG JSON_SMART_VERSION=2.5.2
-# renovate: datasource=maven depName=io.netty/netty-handler
+# renovate: datasource=maven depName=netty-handler lookupName=io.netty:netty-handler
 ARG NETTY_HANDLER_VERSION=4.1.118.Final
 RUN set -eux \
   && curl -o /data/patches/json-smart-${JSON_SMART_VERSION}.jar https://repo1.maven.org/maven2/net/minidev/json-smart/${JSON_SMART_VERSION}/json-smart-${JSON_SMART_VERSION}.jar \

@@ -4,7 +4,7 @@
     "github>AlaudaDevops/renovate-config:base"
   ],
   "baseBranches": [
-    "alauda-*"
+    "alauda-2025.1.0"
   ],
   "enabledManagers": ["dockerfile", "regex", "gradle-wrapper"],
   "ignorePaths": [
