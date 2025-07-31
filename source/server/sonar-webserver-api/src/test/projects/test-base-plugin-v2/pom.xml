@@ -13,7 +13,7 @@
     <dependency>
       <groupId>org.codehaus.sonar</groupId>
       <artifactId>sonar-plugin-api</artifactId>
-      <version>4.5.4</version>
+      <version>4.5.7</version>
       <scope>provided</scope>
     </dependency>
   </dependencies>
