@@ -45,6 +45,8 @@ spec:
       value:
         - .tekton/dockerfile/Dockerfile.base
 
+    - name: ignore-trivy-scan
+      value: "true"
   workspaces:
     - name: source
       volumeClaimTemplate:
