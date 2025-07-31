@@ -49,15 +49,17 @@ RUN set -eux; \
     ./bin/helm version && \
     jq --version
 
-ENV PATH="${PATH}:/app/sonar-scanner/bin:/app/bin"
-
-COPY --from=builder /tools/bin/sonarqube-e2e.test /app/bin/sonarqube-e2e.test
-
 WORKDIR /app/testing
 
-COPY ./chart /app/chart
-COPY ./testing /app/testing
+# Create user with ID 65532 for security purposes
+RUN groupadd --gid 65532 nonroot && \
+useradd --uid 65532 --gid 65532 --shell /bin/bash --create-home nonroot
 
+COPY --chown=nonroot:nonroot ./chart /app/chart
+COPY --chown=nonroot:nonroot ./testing /app/testing
+COPY --chown=nonroot:nonroot --from=builder /tools/bin/sonarqube-e2e.test /app/bin/sonarqube-e2e.test
+
+ENV PATH="${PATH}:/app/sonar-scanner/bin:/app/bin"
 ENV CI=true
 ENV LANG=zh_CN.UTF-8
 ENV LC_ALL=zh_CN.UTF-8
