@@ -7,39 +7,36 @@
   "baseBranches": [
     "alauda-2025.1.0"
   ],
-  "enabledManagers": ["dockerfile", "regex","maven"],
+  "enabledManagers": ["dockerfile", "regex", "maven", "gradle", "gradle-wrapper", "github-releases"],
   "ignorePaths": [
     "**/testdata/**",
     "source/.cirrus/**",
-    "testing/**"
+    "testing/**",
+    "**/src/test/**"
   ],
   "labels": ["dependencies"],
   "packageRules": [
     {
-      "matchPackageNames": ["*"],
-      "enabled": false,
-      "automerge": false
+      "matchUpdateTypes": ["minor", "major"],
+      "enabled": false
     },
     {
-      "matchDatasources": ["maven"],
-      "enabled": true
-    },
-    {
-      "matchManagers": ["regex"],
-      "matchDatasources": ["maven"],
       "matchUpdateTypes": ["patch"],
       "enabled": true,
       "automerge": true
     },
     {
-      "matchDatasources": ["maven"],
-      "matchUpdateTypes": ["patch"],
+      "matchDatasources":["github-releases"],
+      "matchUpdateTypes": ["minor", "patch"],
       "enabled": true
     },
     {
-      "matchDatasources": ["maven"],
-      "matchUpdateTypes": ["minor", "major"],
-      "enabled": false
+      "groupName": "all patch dependencies",
+      "groupSlug": "patch-upgrades",
+      "matchPackageNames": ["*"],
+      "matchUpdateTypes": [
+        "patch"
+      ]
     }
   ]
 }
