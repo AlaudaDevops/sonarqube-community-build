@@ -67,6 +67,11 @@
       "matchDatasources": ["maven"],
       "matchUpdateTypes": ["patch"],
       "enabled": true
+    },
+    {
+      "matchDatasources": ["maven"],
+      "matchUpdateTypes": ["minor", "major"],
+      "enabled": false
     }
   ]
 }
