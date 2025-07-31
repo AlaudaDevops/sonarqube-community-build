@@ -50,5 +50,23 @@
     "org.sonarsource.iac:sonar-iac-plugin"
   ],
   "labels": ["dependencies"],
-  "postUpdateOptions": ["gomodTidy"]
+  "postUpdateOptions": ["gomodTidy"],
+  "packageRules": [
+    {
+      "matchDatasources": ["maven"],
+      "enabled": true
+    },
+    {
+      "matchManagers": ["regex"],
+      "matchDatasources": ["maven"],
+      "matchUpdateTypes": ["patch"],
+      "enabled": true,
+      "automerge": true
+    },
+    {
+      "matchDatasources": ["maven"],
+      "matchUpdateTypes": ["patch"],
+      "enabled": true
+    }
+  ]
 }
