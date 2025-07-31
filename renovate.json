@@ -7,7 +7,7 @@
   "baseBranches": [
     "alauda-2025.1.0"
   ],
-  "enabledManagers": ["dockerfile", "regex", "maven", "gradle", "gradle-wrapper", "github-releases"],
+  "enabledManagers": ["dockerfile", "regex", "maven", "gradle", "gradle-wrapper"],
   "ignorePaths": [
     "**/testdata/**",
     "source/.cirrus/**",
