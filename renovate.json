@@ -37,6 +37,24 @@
       "matchUpdateTypes": [
         "patch"
       ]
+    },
+    {
+      "groupName": "Apache Commons packages",
+      "groupSlug": "apache-commons-minor",
+      "matchPackageNames": ["org.apache.commons**"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "enabled": true,
+      "automerge": true,
+      "description": "Allow minor version updates for Apache Commons packages for security and stability improvements"
+    },
+    {
+      "groupName": "SonarQube plugins upgrades",
+      "groupSlug": "sonarqube-plugins-minor",
+      "matchPackageNames": ["org.sonarsource*plugin*"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "enabled": true,
+      "automerge": true,
+      "description": "Allow minor version updates for SonarQube plugins for security and stability improvements"
     }
   ],
   "customManagers": [
