@@ -27,16 +27,21 @@ RUN mkdir -p /data/patches \
   && mv /data/sonarqube-${SONARQUBE_VERSION} /data/sonarqube \
   && ls -al /data/sonarqube
 
-COPY --chown=sonarsource:sonarsource image/community-build/apply-jar-patch.sh /tmp/apply-jar-patch.sh
-# renovate: datasource=maven depName=json-smart lookupName=net.minidev:json-smart
-ARG JSON_SMART_VERSION=2.5.2
-# renovate: datasource=maven depName=netty-handler lookupName=io.netty:netty-handler
-ARG NETTY_HANDLER_VERSION=4.1.123.Final
 RUN set -eux \
-  && curl -o /data/patches/json-smart-${JSON_SMART_VERSION}.jar https://repo1.maven.org/maven2/net/minidev/json-smart/${JSON_SMART_VERSION}/json-smart-${JSON_SMART_VERSION}.jar \
-  && curl -o /data/patches/netty-handler-${NETTY_HANDLER_VERSION}.jar https://repo1.maven.org/maven2/io/netty/netty-handler/${NETTY_HANDLER_VERSION}/netty-handler-${NETTY_HANDLER_VERSION}.jar \
-  && chmod +x /tmp/apply-jar-patch.sh \
-  && /tmp/apply-jar-patch.sh /data/patches /data/sonarqube
+  && rm -rf /data/sonarqube/bin/* \
+  && chmod -R 550 /data/sonarqube \
+  && chmod -R 770 /data/sonarqube/data /data/sonarqube/extensions /data/sonarqube/logs /data/sonarqube/temp
+
+# COPY --chown=sonarsource:sonarsource image/community-build/apply-jar-patch.sh /tmp/apply-jar-patch.sh
+# # renovate: datasource=maven depName=json-smart lookupName=net.minidev:json-smart
+# ARG JSON_SMART_VERSION=2.5.2
+# # renovate: datasource=maven depName=netty-handler lookupName=io.netty:netty-handler
+# ARG NETTY_HANDLER_VERSION=4.1.123.Final
+# RUN set -eux \
+#   && curl -o /data/patches/json-smart-${JSON_SMART_VERSION}.jar https://repo1.maven.org/maven2/net/minidev/json-smart/${JSON_SMART_VERSION}/json-smart-${JSON_SMART_VERSION}.jar \
+#   && curl -o /data/patches/netty-handler-${NETTY_HANDLER_VERSION}.jar https://repo1.maven.org/maven2/io/netty/netty-handler/${NETTY_HANDLER_VERSION}/netty-handler-${NETTY_HANDLER_VERSION}.jar \
+#   && chmod +x /tmp/apply-jar-patch.sh \
+#   && /tmp/apply-jar-patch.sh /data/patches /data/sonarqube
 
 FROM docker-mirrors.alauda.cn/library/eclipse-temurin:${JRE_IMAGE_VERSION}
 
@@ -66,12 +71,11 @@ ENV DOCKER_RUNNING="true" \
 # Separate stage to use variable expansion
 ENV ES_TMPDIR="${SQ_TEMP_DIR}"
 
-RUN mkdir -p /opt
-COPY --from=builder /data/sonarqube/ ${SONARQUBE_HOME}
+RUN mkdir -p /opt \
+  && useradd --system --uid 1000 --gid 0 sonarqube;
+COPY --from=builder --chown=sonarqube:sonarqube /data/sonarqube/ ${SONARQUBE_HOME}
 
 RUN set -eux; \
-    # deluser ubuntu; \
-    useradd --system --uid 1000 --gid 0 sonarqube; \
     apt-get update; \
     apt-get --no-install-recommends -y install \
         bash \
@@ -79,15 +83,12 @@ RUN set -eux; \
         fonts-dejavu; \
     echo "networkaddress.cache.ttl=5" >> "${JAVA_HOME}/conf/security/java.security"; \
     sed --in-place --expression="s?securerandom.source=file:/dev/random?securerandom.source=file:/dev/urandom?g" "${JAVA_HOME}/conf/security/java.security"; \
-    rm -rf ${SONARQUBE_HOME}/bin/*; \
-    ln -s "${SONARQUBE_HOME}/lib/sonar-application-${SONARQUBE_VERSION}.jar" "${SONARQUBE_HOME}/lib/sonarqube.jar"; \
-    chmod -R 550 ${SONARQUBE_HOME}; \
-    chmod -R 770 "${SQ_DATA_DIR}" "${SQ_EXTENSIONS_DIR}" "${SQ_LOGS_DIR}" "${SQ_TEMP_DIR}"; \
+    ln -s ${SONARQUBE_HOME}/lib/sonar-application-${SONARQUBE_VERSION}.jar ${SONARQUBE_HOME}/lib/sonarqube.jar; \
     rm -rf /var/lib/apt/lists/*;
 
 VOLUME ["${SQ_DATA_DIR}", "${SQ_EXTENSIONS_DIR}", "${SQ_LOGS_DIR}", "${SQ_TEMP_DIR}"]
 
-COPY image/community-build/entrypoint.sh ${SONARQUBE_HOME}/docker/
+COPY --chown=sonarqube:sonarqube image/community-build/entrypoint.sh ${SONARQUBE_HOME}/docker/
 
 # replace go-plugin to support arm architecture
 # pipeline: https://edge.alauda.cn/console-devops/workspace/devops/ci?namespace=tools&cluster=business-build&buildName=sonarqube-go-plugin
