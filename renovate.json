@@ -1,70 +1,53 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "github>AlaudaDevops/renovate-config:base"
+    "config:recommended",
+    "customManagers:dockerfileVersions"
   ],
   "baseBranches": [
     "alauda-2025.1.0"
   ],
-  "enabledManagers": ["dockerfile", "regex", "gradle-wrapper"],
+  "enabledManagers": ["dockerfile", "regex", "maven", "gradle", "gradle-wrapper"],
   "ignorePaths": [
     "**/testdata/**",
     "source/.cirrus/**",
-    "testing/**"
-  ],
-  "ignoreDeps": [
-    "org.ajoberstar.grgit",
-    "com.bmuschko.docker-remote-api",
-    "com.sonarsource.abap:sonar-abap-plugin",
-    "com.sonarsource.cobol:sonar-cobol-plugin",
-    "com.sonarsource.cpp:sonar-cfamily-plugin",
-    "com.sonarsource.pli:sonar-pli-plugin",
-    "com.sonarsource.plsql:sonar-plsql-plugin",
-    "com.sonarsource.plugins.vb:sonar-vb-plugin",
-    "com.sonarsource.rpg:sonar-rpg-plugin",
-    "com.sonarsource.security:sonar-security-csharp-frontend-plugin",
-    "com.sonarsource.security:sonar-security-java-frontend-plugin",
-    "com.sonarsource.security:sonar-security-php-frontend-plugin",
-    "com.sonarsource.security:sonar-security-plugin",
-    "com.sonarsource.security:sonar-security-python-frontend-plugin",
-    "com.sonarsource.security:sonar-security-js-frontend-plugin",
-    "com.sonarsource.slang:sonar-apex-plugin",
-    "com.sonarsource.swift:sonar-swift-plugin",
-    "com.sonarsource.tsql:sonar-tsql-plugin",
-    "org.sonarsource.config:sonar-config-plugin",
-    "org.sonarsource.dotnet:sonar-csharp-plugin",
-    "org.sonarsource.dotnet:sonar-vbnet-plugin",
-    "org.sonarsource.flex:sonar-flex-plugin",
-    "org.sonarsource.html:sonar-html-plugin",
-    "org.sonarsource.jacoco:sonar-jacoco-plugin",
-    "org.sonarsource.java:sonar-java-plugin",
-    "org.sonarsource.java:sonar-java-symbolic-execution-plugin",
-    "org.sonarsource.javascript:sonar-javascript-plugin",
-    "org.sonarsource.php:sonar-php-plugin",
-    "org.sonarsource.python:sonar-python-plugin",
-    "org.sonarsource.slang:sonar-go-plugin",
-    "org.sonarsource.kotlin:sonar-kotlin-plugin",
-    "org.sonarsource.slang:sonar-ruby-plugin",
-    "org.sonarsource.slang:sonar-scala-plugin",
-    "org.sonarsource.xml:sonar-xml-plugin",
-    "org.sonarsource.iac:sonar-iac-plugin"
+    "testing/**",
+    "**/src/test/**"
   ],
   "labels": ["dependencies"],
-  "postUpdateOptions": ["gomodTidy"],
   "packageRules": [
     {
-      "matchManagers": ["gradle-wrapper", "gradle"],
-      "enabled": true
-    },
-    {
-      "matchManagers": ["gradle-wrapper", "gradle"],
-      "updateTypes": ["patch"],
-      "enabled": true
-    },
-    {
-      "matchManagers": ["gradle-wrapper", "gradle"],
-      "updateTypes": ["major", "minor"],
+      "matchUpdateTypes": ["minor", "major"],
       "enabled": false
+    },
+    {
+      "matchUpdateTypes": ["patch"],
+      "enabled": true,
+      "automerge": true
+    },
+    {
+      "matchDatasources":["github-releases"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "enabled": true
+    },
+    {
+      "groupName": "all patch dependencies",
+      "groupSlug": "patch-upgrades",
+      "matchPackageNames": ["*"],
+      "matchUpdateTypes": [
+        "patch"
+      ]
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/gradle\\.properties$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-zA-Z0-9-._]+?) depName=(?<depName>[^\\s]+?)(?:\\s+(?:lookupName|packageName)=(?<packageName>[^\\s]+?))?(?:\\s+versioning=(?<versioning>[^\\s]+?))?(?:\\s+extractVersion=(?<extractVersion>[^\\s]+?))?(?:\\s+registryUrl=(?<registryUrl>[^\\s]+?))?\\s*\\n.*[:=]\\s*[\"']?(?<currentValue>[0-9a-zA-Z._-]+)[\"']?"
+      ]
     }
   ]
 }
