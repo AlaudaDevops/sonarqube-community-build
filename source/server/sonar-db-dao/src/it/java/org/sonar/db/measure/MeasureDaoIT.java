@@ -24,8 +24,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import org.apache.commons.lang.RandomStringUtils;
-import org.apache.commons.lang.math.RandomUtils;
+import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.commons.lang3.RandomUtils;
 import org.apache.ibatis.session.ResultHandler;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -41,7 +41,7 @@ import org.sonar.db.metric.MetricDto;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.apache.commons.lang.RandomStringUtils.randomAlphabetic;
+import static org.apache.commons.lang3.RandomStringUtils.randomAlphabetic;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.entry;
 import static org.assertj.core.groups.Tuple.tuple;
@@ -498,7 +498,7 @@ class MeasureDaoIT {
 
   private MeasureDto newMeasureForMetrics(ComponentDto componentDto, MetricDto... metrics) {
     return db.measures().insertMeasure(componentDto,
-      m -> Arrays.stream(metrics).forEach(metric -> m.addValue(metric.getKey(), RandomUtils.nextInt(50))));
+      m -> Arrays.stream(metrics).forEach(metric -> m.addValue(metric.getKey(), RandomUtils.nextInt(0, 50))));
   }
 
   private void verifyTableSize(int expectedSize) {
@@ -512,6 +512,6 @@ class MeasureDaoIT {
   }
 
   private static double getDoubleValue() {
-    return RandomUtils.nextInt(100);
+    return RandomUtils.nextInt(0, 100);
   }
 }

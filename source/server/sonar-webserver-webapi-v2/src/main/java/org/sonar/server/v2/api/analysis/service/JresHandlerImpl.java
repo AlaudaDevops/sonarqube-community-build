@@ -38,7 +38,7 @@ import org.sonar.server.exceptions.NotFoundException;
 import org.sonar.server.v2.api.analysis.response.JreInfoRestResponse;
 
 import static java.lang.String.join;
-import static org.apache.commons.lang.StringUtils.isBlank;
+import static org.apache.commons.lang3.StringUtils.isBlank;
 
 public class JresHandlerImpl implements JresHandler {
 

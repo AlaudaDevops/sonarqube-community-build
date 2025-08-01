@@ -26,8 +26,8 @@ import javax.annotation.Nullable;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.apache.commons.lang.math.RandomUtils.nextBoolean;
-import static org.apache.commons.lang.math.RandomUtils.nextInt;
+import static org.apache.commons.lang3.RandomUtils.nextBoolean;
+import static org.apache.commons.lang3.RandomUtils.nextInt;
 import static org.apache.commons.lang3.RandomStringUtils.secure;
 
 public class UserTesting {
@@ -57,7 +57,7 @@ public class UserTesting {
   public static UserDto newUserDtoRealistic() {
     long timeNow = System.currentTimeMillis();
     String loginAndAndId = secure().nextAlphanumeric(30);
-    String realisticIdentityProvider = realisticIdentityProviders[nextInt(realisticIdentityProviders.length)];
+    String realisticIdentityProvider = realisticIdentityProviders[nextInt(0, realisticIdentityProviders.length)];
     boolean isExternal = nextBoolean();
     String externalIdAndLogin = isExternal ? loginAndAndId + "_" + realisticIdentityProvider : loginAndAndId;
     return new UserDto().setUuid(secure().nextAlphanumeric(40))
@@ -78,7 +78,7 @@ public class UserTesting {
       .setUpdatedAt(timeNow)
       .setLastConnectionDate(nextBoolean() ? timeNow : null)
       .setResetPassword(nextBoolean() && nextBoolean() && nextBoolean())
-      .setHomepageParameter(nextInt(10) + "")
+      .setHomepageParameter(nextInt(0, 10) + "")
       .setHomepageType("projects");
   }
 
