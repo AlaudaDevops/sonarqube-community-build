@@ -199,19 +199,6 @@ allprojects {
     // The name of this variable is important because it's used by the delivery process when extracting version from Artifactory build info.
     clientConfig.info.addEnvironmentProperty('PROJECT_VERSION', "${version}")
   }
-
-  // Fix CVE-2025-48924: Force exclude old commons-lang and use commons-lang3
-  configurations.all {
-    exclude group: 'commons-lang', module: 'commons-lang'
-    resolutionStrategy {
-      eachDependency { DependencyResolveDetails details ->
-        if (details.requested.group == 'commons-lang' && details.requested.name == 'commons-lang') {
-          details.useTarget group: 'org.apache.commons', name: 'commons-lang3', version: '3.18.0'
-          details.because 'Fix CVE-2025-48924: Replace old commons-lang with commons-lang3'
-        }
-      }
-    }
-  }
 }
 
 apply plugin: 'org.sonarqube'
