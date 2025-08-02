@@ -5,22 +5,21 @@ WORKDIR /app
 COPY . /app
 
 ENV GOPROXY='https://build-nexus.alauda.cn/repository/golang/,direct'
-RUN set -eux; \
-    mkdir -p /tools/bin && chmod -R 777 /tools/bin; \
-    cd /app/testing && \
-    CGO_ENABLED=0 go test -c -o /tools/bin/sonarqube-e2e.test ./
+RUN set -eux \
+    && mkdir -p /tools/bin && chmod -R 777 /tools/bin \
+    && cd /app/testing \
+    && CGO_ENABLED=0 go test -c -o /tools/bin/sonarqube-e2e.test ./
 
 
 FROM build-harbor.alauda.cn/devops/sonarqube-ce-test-base:latest
 
-RUN groupadd --gid 65532 nonroot && \
-useradd --uid 65532 --gid 65532 --shell /bin/bash --create-home nonroot
+RUN set -eux \
+    && groupadd --gid 65532 nonroot \
+    && useradd --uid 65532 --gid 65532 --shell /bin/bash --create-home nonroot
 
 COPY --chown=nonroot:nonroot ./chart /app/chart
 COPY --chown=nonroot:nonroot ./testing /app/testing
 COPY --chown=nonroot:nonroot --from=builder /tools/bin/sonarqube-e2e.test /app/bin/sonarqube-e2e.test
-
-USER 65532
 
 WORKDIR /app/testing
 
