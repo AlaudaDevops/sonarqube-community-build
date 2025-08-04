@@ -1,8 +1,8 @@
 # source: https://github.com/SonarSource/sonarqube/blob/170bd61e5e75fb3668dd31dc71570f5e40a800fd/.cirrus/Dockerfile#L1
 # renovate: datasource=docker depName=eclipse-temurin
-ARG JDK_IMAGE_VERSION=17.0.15_6-jdk-jammy
+ARG JDK_IMAGE_VERSION=17.0.16_8-jdk-jammy
 # renovate: datasource=docker depName=eclipse-temurin
-ARG JRE_IMAGE_VERSION=17.0.15_6-jre-jammy
+ARG JRE_IMAGE_VERSION=17.0.16_8-jre-jammy
 FROM docker-mirrors.alauda.cn/library/eclipse-temurin:${JDK_IMAGE_VERSION} as builder
 
 RUN mkdir -p /usr/share/man/man1 \
