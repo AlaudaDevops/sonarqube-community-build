@@ -10,7 +10,7 @@ metadata:
       (
         "source/**".pathChanged() ||
         "image/**".pathChanged() ||
-        ".tekton/sonar-image.yaml".pathChanged() ||
+        ".tekton/build-image.yaml".pathChanged() ||
         ".tekton/pipeline/sonar-image-build".pathChanged()
       )
     pipelinesascode.tekton.dev/max-keep-runs: "5"
