@@ -31,17 +31,11 @@ SETTINGS_FILE=~/.m2/settings.xml
 if [ -f "$SETTINGS_FILE" ]; then
     # 检查是否已有sonar profile
     if grep -q '<id>sonar</id>' "$SETTINGS_FILE"; then
-        # 用新内容替换原有sonar profile
+        # 只替换token和sonar host
         TMP_FILE=$(mktemp)
-        awk -v content="$SONAR_SETTINGS_CONTENT" '
-            BEGIN{profile=0}
-            /<profile>/ {p=NR}
-            /<id>sonar<\/id>/ {profile=1}
-            profile && /<\/profile>/ {
-                print content; profile=0; next
-            }
-            !(profile && NR>p) {print}
-        ' "$SETTINGS_FILE" > "$TMP_FILE"
+        sed -e "s|<sonar.host.url>.*</sonar.host.url>|<sonar.host.url>$SONAR_HOST</sonar.host.url>|g" \
+            -e "s|<sonar.login>.*</sonar.login>|<sonar.login>$SONAR_TOKEN</sonar.login>|g" \
+            "$SETTINGS_FILE" > "$TMP_FILE"
         mv "$TMP_FILE" "$SETTINGS_FILE"
     else
         # 插入sonar配置到<settings>标签内
@@ -54,7 +48,7 @@ if [ -f "$SETTINGS_FILE" ]; then
 else
     cat <<EOF > "$SETTINGS_FILE"
 <settings>
-$SONAR_SETTINGS_CONTENT
+$(echo -e "$SONAR_SETTINGS_CONTENT")
 </settings>
 EOF
 fi
