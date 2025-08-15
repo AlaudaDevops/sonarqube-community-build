@@ -1,2 +1,2 @@
 https://build-nexus.alauda.cn/repository/alauda-maven/com/github/mc1arke/sonarqube/plugin/sonarqube-community-branch-plugin/1.23.1/sonarqube-community-branch-plugin-1.23.1.jar
-https://github.com/spotbugs/sonar-findbugs/releases/download/4.4.2/sonar-findbugs-plugin-4.4.2.jar
+https://github.com/spotbugs/sonar-findbugs/releases/download/4.5.2/sonar-findbugs-plugin-4.5.2.jar

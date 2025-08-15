@@ -76,15 +76,16 @@ RUN mkdir -p /opt \
 COPY --from=builder --chown=sonarqube:sonarqube /data/sonarqube/ ${SONARQUBE_HOME}
 
 RUN set -eux; \
-    apt-get update; \
-    apt-get --no-install-recommends -y install \
-        bash \
-        curl \
-        fonts-dejavu; \
-    echo "networkaddress.cache.ttl=5" >> "${JAVA_HOME}/conf/security/java.security"; \
-    sed --in-place --expression="s?securerandom.source=file:/dev/random?securerandom.source=file:/dev/urandom?g" "${JAVA_HOME}/conf/security/java.security"; \
-    ln -s ${SONARQUBE_HOME}/lib/sonar-application-${SONARQUBE_VERSION}.jar ${SONARQUBE_HOME}/lib/sonarqube.jar; \
-    rm -rf /var/lib/apt/lists/*;
+  apt-get update; \
+  apt-get --no-install-recommends -y install \
+    bash \
+    curl \
+    fonts-dejavu \
+    perl-base=5.34.0-3ubuntu1.5; \
+  echo "networkaddress.cache.ttl=5" >> "${JAVA_HOME}/conf/security/java.security"; \
+  sed --in-place --expression="s?securerandom.source=file:/dev/random?securerandom.source=file:/dev/urandom?g" "${JAVA_HOME}/conf/security/java.security"; \
+  ln -s ${SONARQUBE_HOME}/lib/sonar-application-${SONARQUBE_VERSION}.jar ${SONARQUBE_HOME}/lib/sonarqube.jar; \
+  rm -rf /var/lib/apt/lists/*;
 
 VOLUME ["${SQ_DATA_DIR}", "${SQ_EXTENSIONS_DIR}", "${SQ_LOGS_DIR}", "${SQ_TEMP_DIR}"]
 
