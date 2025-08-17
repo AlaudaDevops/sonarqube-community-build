@@ -20,7 +20,7 @@ global:
       digest: sha256:565500e7f0acfb7da4693eaf49b24629dc1fcd7cc6ca4571809c794959d0c0d8
     busybox:
       repository: ops/ubuntu
-      tag: "24"
+      tag: "25.10-alauda-202506181033"
       support_arm: true
       thirdparty: true
   labelBaseDomain: alauda.io
