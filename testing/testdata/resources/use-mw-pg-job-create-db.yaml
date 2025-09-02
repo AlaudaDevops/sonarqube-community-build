@@ -1,0 +1,31 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: init-sonarqube-db
+spec:
+  template:
+    spec:
+      containers:
+        - name: init-db
+          image: <config.{{.registry.test | default "152-231-registry.alauda.cn:60070"}}>/3rdparty/bitnami/postgresql:14.8.0-debian-11-r84
+          env:
+            - name: POSTGRES_POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: jdbc-password
+                  name: sonarqube-pg
+          command:
+            - sh
+            - -c
+            - |
+              export pg_host=<config.{{.toolchains.postgresql_14.host | default "host"}}>
+              export PGPASSWORD=${POSTGRES_POSTGRES_PASSWORD};
+              export PGUSER=postgres;
+              export port=<config.{{.toolchains.postgresql_14.port | default "5432"}}>
+              until pg_isready -U ${PGUSER} -h ${pg_host} -p ${port}; do
+                echo "等待 Postgres 启动..."
+                sleep 2
+              done
+              # 创建数据库
+              psql -h ${pg_host} -U ${PGUSER} -c "CREATE DATABASE sonarqubedb;"
+      restartPolicy: OnFailure

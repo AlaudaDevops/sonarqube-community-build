@@ -1,0 +1,34 @@
+apiVersion: operator.alaudadevops.io/v1alpha1
+kind: Sonarqube
+metadata:
+  name: sonar-mw
+spec:
+  externalURL: http://<node.ip.random.readable>:<nodeport.http>
+  helmValues:
+    postgresql:
+      enabled: false
+    jdbcOverwrite:
+      enable: true
+      jdbcSecretName: sonarqube-pg
+      jdbcUrl: jdbc:postgresql://<config.{{.toolchains.postgresql_14.host | default "devops-pg.devops-ns.svc"}}>:<config.{{.toolchains.postgresql_14.port | default "5432"}}>/sonarqubedb?socketTimeout=1500
+      jdbcUsername: <config.{{.toolchains.postgresql_14.username | default "postgres"}}>
+    account:
+      adminPasswordSecretName: sonarqube-root-password
+    resources:
+      limits:
+        cpu: 800m
+        memory: 4Gi
+      requests:
+        cpu: 400m
+        memory: 2Gi
+    service:
+      name: sonarqube
+      type: NodePort
+      nodePort: <nodeport.http>
+    nodeSelector:
+      kubernetes.io/hostname: <node.name.random>
+    persistence:
+      enabled: false
+      host:
+        nodeName: <node.name.random>
+        path: /tmp/sonar/mw
