@@ -25,10 +25,7 @@ spec:
       name: sonarqube
       type: NodePort
       nodePort: <nodeport.http>
-    nodeSelector:
-      kubernetes.io/hostname: <node.name.random>
     persistence:
-      enabled: false
-      host:
-        nodeName: <node.name.random>
-        path: /tmp/sonar/mw
+      enabled: true
+      storageClass: <storage-class.rwm>
+      size: 2Gi

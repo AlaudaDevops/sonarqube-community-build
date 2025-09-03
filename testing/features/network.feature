@@ -26,7 +26,7 @@
       timeout: 30m
       values:
       - testdata/snippets/base-values.yaml
-      - testdata/snippets/tpl-values-storage-hostpath.yaml
+      - testdata/snippets/tpl-values-storage-sc.yaml
       - testdata/values-network-http.yaml
       """
     那么 "sonarqube" 可以正常访问
@@ -77,7 +77,7 @@
       timeout: 30m
       values:
       - testdata/snippets/base-values.yaml
-      - testdata/snippets/tpl-values-storage-hostpath.yaml
+      - testdata/snippets/tpl-values-storage-sc.yaml
       - testdata/values-network-https.yaml
       """
     那么 "sonarqube" 可以正常访问
@@ -103,7 +103,7 @@
       timeout: 30m
       values:
       - testdata/snippets/base-values.yaml
-      - testdata/snippets/tpl-values-storage-hostpath.yaml
+      - testdata/snippets/tpl-values-storage-sc.yaml
       - testdata/values-network-nodeport.yaml
       """
     那么 "sonarqube" 可以正常访问
