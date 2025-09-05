@@ -1,5 +1,4 @@
 # language: zh-CN
-@e2e
 @smoke
 @sonar-service-case
 @sonar-scan-revision
@@ -22,7 +21,7 @@
         当 发送 "获取扫描结果" 请求
             """
             GET <config.{{.sonar.url}}>/api/measures/component?component=revision-branch&branch=abc&metricKeys=ncloc,coverage HTTP/1.1
-            Authorization: Basic <config.{{ printf "%s:" .sonar.token | b64enc}}>
+            Authorization: Basic <config.{{ printf "%s:" .sonar.token | base64Encode}}>
             """
         那么 HTTP 响应状态码为 "200"
 
@@ -51,6 +50,6 @@
         当 发送 "获取扫描结果" 请求
             """
             GET <config.{{.sonar.url}}>/api/measures/component?component=revision-pr&pullRequest=123&metricKeys=ncloc,coverage HTTP/1.1
-            Authorization: Basic <config.{{ printf "%s:" .sonar.token | b64enc}}>
+            Authorization: Basic <config.{{ printf "%s:" .sonar.token | base64Encode}}>
             """
         那么 HTTP 响应状态码为 "200"
