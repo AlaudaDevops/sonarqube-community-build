@@ -14,12 +14,26 @@ spec:
       description: "Workspace for cache files"
   params:
     - name: git-revision
-      description: Git revision object with url, branch, commit, and pull-request-number.
+      description: |
+        Git revision object with url, branch, commit, and pull request information.
+        * url: The url of the git repository
+        * branch: The source branch of the git repository
+        * commit: The commit of the git repository
+        * pull-request-number: The pull request number
+        * pull-request-source: The source branch of the pull request
+        * pull-request-target: The target branch of the pull request
       type: object
       properties:
-        url: {}
-        branch: {}
-        commit: {}
+        url: { type: string }
+        branch: { type: string }
+        commit: { type: string }
+        pull-request-number: {} # Pull request number.
+        pull-request-source: {} # Pull request source.
+        pull-request-target: {} # Pull request target branch.
+      default:
+        pull-request-number: ""
+        pull-request-source: ""
+        pull-request-target: ""
     - name: image-scan-gate-enabled
       description: Determine whether to skip the image scan step
       type: string
@@ -40,6 +54,8 @@ spec:
           value: $(params.git-revision.branch)
         - name: depth
           value: 1
+        - name: pr-number
+          value: $(params.git-revision.pull-request-number)
       taskRef:
         resolver: hub
         params:
