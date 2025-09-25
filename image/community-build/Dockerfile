@@ -32,16 +32,20 @@ RUN set -eux \
   && chmod -R 550 /data/sonarqube \
   && chmod -R 770 /data/sonarqube/data /data/sonarqube/extensions /data/sonarqube/logs /data/sonarqube/temp
 
-# COPY --chown=sonarsource:sonarsource image/community-build/apply-jar-patch.sh /tmp/apply-jar-patch.sh
-# # renovate: datasource=maven depName=json-smart lookupName=net.minidev:json-smart
-# ARG JSON_SMART_VERSION=2.5.2
-# # renovate: datasource=maven depName=netty-handler lookupName=io.netty:netty-handler
-# ARG NETTY_HANDLER_VERSION=4.1.123.Final
-# RUN set -eux \
-#   && curl -o /data/patches/json-smart-${JSON_SMART_VERSION}.jar https://repo1.maven.org/maven2/net/minidev/json-smart/${JSON_SMART_VERSION}/json-smart-${JSON_SMART_VERSION}.jar \
-#   && curl -o /data/patches/netty-handler-${NETTY_HANDLER_VERSION}.jar https://repo1.maven.org/maven2/io/netty/netty-handler/${NETTY_HANDLER_VERSION}/netty-handler-${NETTY_HANDLER_VERSION}.jar \
-#   && chmod +x /tmp/apply-jar-patch.sh \
-#   && /tmp/apply-jar-patch.sh /data/patches /data/sonarqube
+COPY --chown=sonarsource:sonarsource image/community-build/replace-jar.sh /tmp/replace-jar.sh
+
+# renovate: datasource=maven depName=netty-codec lookupName=io.netty:netty-codec
+ARG NETTY_VERSION=4.1.118.Final
+# renovate: datasource=maven depName=bc-fips lookupName=org.bouncycastle:bc-fips
+ARG BC_VERSION=1.0.2.5
+# renovate: datasource=maven depName=bcpkix-jdk18on lookupName=org.bouncycastle:bcpkix-jdk18on
+ARG BCPKIX_VERSION=1.78.1
+RUN chmod +x /tmp/replace-jar.sh && \
+    /tmp/replace-jar.sh io.netty netty-codec 4.1.118.Final ${NETTY_VERSION} /data/sonarqube/elasticsearch && \
+    /tmp/replace-jar.sh io.netty netty-codec-http 4.1.118.Final ${NETTY_VERSION} /data/sonarqube/elasticsearch && \
+    /tmp/replace-jar.sh io.netty netty-codec-http2 4.1.118.Final ${NETTY_VERSION} /data/sonarqube/elasticsearch && \
+    /tmp/replace-jar.sh org.bouncycastle bc-fips 1.0.2.5 ${BC_VERSION} /data/sonarqube/elasticsearch && \
+    /tmp/replace-jar.sh org.bouncycastle bcpkix-jdk18on 1.78.1 ${BCPKIX_VERSION} /data/sonarqube/elasticsearch
 
 FROM docker-mirrors.alauda.cn/library/eclipse-temurin:${JRE_IMAGE_VERSION}
 
@@ -82,6 +86,7 @@ RUN set -eux; \
     curl \
     fonts-dejavu \
     perl-base=5.34.0-3ubuntu1.5; \
+  apt-get --no-install-recommends -y upgrade libc-bin libc6 locales; \
   echo "networkaddress.cache.ttl=5" >> "${JAVA_HOME}/conf/security/java.security"; \
   sed --in-place --expression="s?securerandom.source=file:/dev/random?securerandom.source=file:/dev/urandom?g" "${JAVA_HOME}/conf/security/java.security"; \
   ln -s ${SONARQUBE_HOME}/lib/sonar-application-${SONARQUBE_VERSION}.jar ${SONARQUBE_HOME}/lib/sonarqube.jar; \

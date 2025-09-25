@@ -27,6 +27,8 @@ spec:
       value: "{{ source_branch }}"
     - name: git-commit
       value: "{{ revision }}"
+    - name: pull-request-number
+      value: "{{ pull_request_number }}"
 
     - name: image-repository
       value: build-harbor.alauda.cn/devops/sonarqube-ce-test-base
