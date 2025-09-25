@@ -32,16 +32,14 @@ RUN set -eux \
   && chmod -R 550 /data/sonarqube \
   && chmod -R 770 /data/sonarqube/data /data/sonarqube/extensions /data/sonarqube/logs /data/sonarqube/temp
 
-# COPY --chown=sonarsource:sonarsource image/community-build/apply-jar-patch.sh /tmp/apply-jar-patch.sh
-# # renovate: datasource=maven depName=json-smart lookupName=net.minidev:json-smart
-# ARG JSON_SMART_VERSION=2.5.2
-# # renovate: datasource=maven depName=netty-handler lookupName=io.netty:netty-handler
-# ARG NETTY_HANDLER_VERSION=4.1.123.Final
-# RUN set -eux \
-#   && curl -o /data/patches/json-smart-${JSON_SMART_VERSION}.jar https://repo1.maven.org/maven2/net/minidev/json-smart/${JSON_SMART_VERSION}/json-smart-${JSON_SMART_VERSION}.jar \
-#   && curl -o /data/patches/netty-handler-${NETTY_HANDLER_VERSION}.jar https://repo1.maven.org/maven2/io/netty/netty-handler/${NETTY_HANDLER_VERSION}/netty-handler-${NETTY_HANDLER_VERSION}.jar \
-#   && chmod +x /tmp/apply-jar-patch.sh \
-#   && /tmp/apply-jar-patch.sh /data/patches /data/sonarqube
+COPY --chown=sonarsource:sonarsource image/community-build/replace-jar.sh /tmp/replace-jar.sh
+
+RUN chmod +x /tmp/replace-jar.sh && \
+    /tmp/replace-jar.sh io.netty netty-codec 4.1.118.Final 4.1.125.Final /data/sonarqube/elasticsearch && \
+    /tmp/replace-jar.sh io.netty netty-codec-http 4.1.118.Final 4.1.125.Final /data/sonarqube/elasticsearch && \
+    /tmp/replace-jar.sh io.netty netty-codec-http2 4.1.118.Final 4.1.125.Final /data/sonarqube/elasticsearch && \
+    /tmp/replace-jar.sh org.bouncycastle bc-fips 1.0.2.5 1.0.2.6 /data/sonarqube/elasticsearch && \
+    /tmp/replace-jar.sh org.bouncycastle bcpkix-jdk18on 1.78.1 1.79 /data/sonarqube/elasticsearch
 
 FROM docker-mirrors.alauda.cn/library/eclipse-temurin:${JRE_IMAGE_VERSION}
 
@@ -82,6 +80,7 @@ RUN set -eux; \
     curl \
     fonts-dejavu \
     perl-base=5.34.0-3ubuntu1.5; \
+  apt-get --no-install-recommends -y upgrade libc-bin libc6 locales; \
   echo "networkaddress.cache.ttl=5" >> "${JAVA_HOME}/conf/security/java.security"; \
   sed --in-place --expression="s?securerandom.source=file:/dev/random?securerandom.source=file:/dev/urandom?g" "${JAVA_HOME}/conf/security/java.security"; \
   ln -s ${SONARQUBE_HOME}/lib/sonar-application-${SONARQUBE_VERSION}.jar ${SONARQUBE_HOME}/lib/sonarqube.jar; \

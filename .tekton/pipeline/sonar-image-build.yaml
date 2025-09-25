@@ -343,6 +343,12 @@ spec:
           workspace: source
         - name: basic-auth
           workspace: basic-auth
+      when:
+        - input: $(params.git-revision.pull-request-number)
+          operator: in
+          values:
+            - ""
+            - " "
       params:
         - name: BASE_IMAGE
           value: registry.alauda.cn:60080/devops/nonroot/chainguard/git:latest
