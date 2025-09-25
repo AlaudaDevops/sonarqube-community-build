@@ -34,12 +34,18 @@ RUN set -eux \
 
 COPY --chown=sonarsource:sonarsource image/community-build/replace-jar.sh /tmp/replace-jar.sh
 
+# renovate: datasource=maven depName=netty-codec lookupName=io.netty:netty-codec
+ARG NETTY_VERSION=4.1.118.Final
+# renovate: datasource=maven depName=bc-fips lookupName=org.bouncycastle:bc-fips
+ARG BC_VERSION=1.0.2.5
+# renovate: datasource=maven depName=bcpkix-jdk18on lookupName=org.bouncycastle:bcpkix-jdk18on
+ARG BCPKIX_VERSION=1.78.1
 RUN chmod +x /tmp/replace-jar.sh && \
-    /tmp/replace-jar.sh io.netty netty-codec 4.1.118.Final 4.1.125.Final /data/sonarqube/elasticsearch && \
-    /tmp/replace-jar.sh io.netty netty-codec-http 4.1.118.Final 4.1.125.Final /data/sonarqube/elasticsearch && \
-    /tmp/replace-jar.sh io.netty netty-codec-http2 4.1.118.Final 4.1.125.Final /data/sonarqube/elasticsearch && \
-    /tmp/replace-jar.sh org.bouncycastle bc-fips 1.0.2.5 1.0.2.6 /data/sonarqube/elasticsearch && \
-    /tmp/replace-jar.sh org.bouncycastle bcpkix-jdk18on 1.78.1 1.79 /data/sonarqube/elasticsearch
+    /tmp/replace-jar.sh io.netty netty-codec 4.1.118.Final ${NETTY_VERSION} /data/sonarqube/elasticsearch && \
+    /tmp/replace-jar.sh io.netty netty-codec-http 4.1.118.Final ${NETTY_VERSION} /data/sonarqube/elasticsearch && \
+    /tmp/replace-jar.sh io.netty netty-codec-http2 4.1.118.Final ${NETTY_VERSION} /data/sonarqube/elasticsearch && \
+    /tmp/replace-jar.sh org.bouncycastle bc-fips 1.0.2.5 ${BC_VERSION} /data/sonarqube/elasticsearch && \
+    /tmp/replace-jar.sh org.bouncycastle bcpkix-jdk18on 1.78.1 ${BCPKIX_VERSION} /data/sonarqube/elasticsearch
 
 FROM docker-mirrors.alauda.cn/library/eclipse-temurin:${JRE_IMAGE_VERSION}
 
