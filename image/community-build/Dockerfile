@@ -39,7 +39,7 @@ ARG NETTY_VERSION=4.1.125.Final
 # renovate: datasource=maven depName=bc-fips lookupName=org.bouncycastle:bc-fips
 ARG BC_VERSION=1.0.2.6
 # renovate: datasource=maven depName=bcpkix-jdk18on lookupName=org.bouncycastle:bcpkix-jdk18on
-ARG BCPKIX_VERSION=1.78.1
+ARG BCPKIX_VERSION=1.79
 RUN chmod +x /tmp/replace-jar.sh && \
     /tmp/replace-jar.sh io.netty netty-codec 4.1.118.Final ${NETTY_VERSION} /data/sonarqube/elasticsearch && \
     /tmp/replace-jar.sh io.netty netty-codec-http 4.1.118.Final ${NETTY_VERSION} /data/sonarqube/elasticsearch && \
