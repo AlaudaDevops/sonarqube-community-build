@@ -107,7 +107,7 @@ func process(ctx context.Context, ssoParams ssoParams) (ctx2 context.Context, er
 	}
 
 	if err := loginSonarqube(ctx, page, ssoParams); err != nil {
-		log.Error("Sonarqube 登录失败: %v", zap.Error(err))
+		log.Error("Sonarqube 登录失败: ", zap.Error(err))
 		return ctx, err
 	}
 
@@ -134,7 +134,7 @@ func loginACP(ctx context.Context, page playwright.Page, params ssoParams) error
 	log.Info("等待登录表单出现...")
 	if _, err := page.WaitForSelector(".login-form", playwright.PageWaitForSelectorOptions{
 		State:   playwright.WaitForSelectorStateVisible,
-		Timeout: playwright.Float(30000),
+		Timeout: playwright.Float(60000),
 	}); err != nil {
 		return fmt.Errorf("等待登录表单: %v", err)
 	}
@@ -189,7 +189,7 @@ func loginSonarqube(ctx context.Context, page playwright.Page, params ssoParams)
 			log.Info("等待 Log in with OpenID Connect 按钮出现...")
 			if err := page.Locator("#oauth-providers").WaitFor(playwright.LocatorWaitForOptions{
 				State:   playwright.WaitForSelectorStateVisible,
-				Timeout: playwright.Float(30000),
+				Timeout: playwright.Float(60000),
 			}); err == nil {
 				found = true
 				break
@@ -208,8 +208,10 @@ func loginSonarqube(ctx context.Context, page playwright.Page, params ssoParams)
 
 	// Wait for page load to complete
 	if err := page.WaitForLoadState(playwright.PageWaitForLoadStateOptions{
-		State: playwright.LoadStateNetworkidle,
+		State:   playwright.LoadStateNetworkidle,
+		Timeout: playwright.Float(60000),
 	}); err != nil {
+		log.Error("等待页面加载完成失败", zap.Error(err))
 		return err
 	}
 
