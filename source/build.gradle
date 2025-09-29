@@ -235,8 +235,8 @@ subprojects {
 
   ext {
     protobufVersion = '4.29.5'
-    springVersion = '6.2.10'
-    springSecurityVersion = '6.4.9'
+    springVersion = '6.2.11'
+    springSecurityVersion = '6.4.11'
     elasticSearchClientVersion = '7.17.29'
   }
 
@@ -413,14 +413,14 @@ subprojects {
         entry 'jjwt-jackson'
       }
       dependency 'com.auth0:java-jwt:4.4.0'
-      dependency 'io.netty:netty-all:4.1.124.Final'
-      dependency 'jakarta.mail:jakarta.mail-api:2.1.3'
+      dependency 'io.netty:netty-all:4.1.127.Final'
+      dependency 'jakarta.mail:jakarta.mail-api:2.1.5'
       dependency 'jakarta.annotation:jakarta.annotation-api:3.0.0'
       dependency 'jakarta.inject:jakarta.inject-api:2.0.1'
       dependency 'jakarta.servlet:jakarta.servlet-api:6.0.0'
       dependency 'junit:junit:4.13.2'
-      dependency 'org.xmlunit:xmlunit-core:2.10.3'
-      dependency 'org.xmlunit:xmlunit-matchers:2.10.3'
+      dependency 'org.xmlunit:xmlunit-core:2.10.4'
+      dependency 'org.xmlunit:xmlunit-matchers:2.10.4'
       dependency 'org.lz4:lz4-java:1.8.0'
       dependency 'org.littleshoot:littleproxy:1.1.2'
       dependency 'net.sf.trove4j:core:3.1.0'
@@ -443,7 +443,7 @@ subprojects {
         entry 'log4j-api'
         entry 'log4j-to-slf4j'
       }
-      dependencySet(group: 'org.apache.tomcat.embed', version: '10.1.44') {
+      dependencySet(group: 'org.apache.tomcat.embed', version: '10.1.46') {
         entry 'tomcat-embed-core'
         entry('tomcat-embed-jasper') {
           exclude 'org.eclipse.jdt.core.compiler:ecj'
@@ -506,7 +506,7 @@ subprojects {
         entry 'log4j-over-slf4j'
         entry 'slf4j-api'
       }
-      dependency 'org.postgresql:postgresql:42.7.7'
+      dependency 'org.postgresql:postgresql:42.7.8'
       dependency 'org.reflections:reflections:0.10.2'
       dependency 'org.simpleframework:simple:5.1.6'
       dependency 'org.sonarsource.git.blame:git-files-blame:1.1.0.1835'
@@ -526,7 +526,7 @@ subprojects {
         exclude 'commons-logging:commons-logging'
       }
       dependency 'org.springdoc:springdoc-openapi-starter-webmvc-api:2.7.0'
-      dependencySet(group: 'com.icegreen', version: '2.1.5') {
+      dependencySet(group: 'com.icegreen', version: '2.1.6') {
         entry 'greenmail'
         entry 'greenmail-junit4'
         entry 'greenmail-junit5'
