@@ -132,6 +132,24 @@ func loginACP(ctx context.Context, page playwright.Page, params ssoParams) error
 	}
 
 	log.Info("等待登录表单出现...")
+	// 检查是否在第三方登录页面
+	buttonLocator := page.Locator(".connectors")
+	isVisible, err := buttonLocator.IsVisible()
+	if err != nil {
+		return fmt.Errorf("检查第三方登录页面失败: %v", err)
+	}
+
+	if isVisible {
+		log.Info("当前在第三方登录页面，切换到本地登录...")
+		if err := page.GetByRole("button", playwright.PageGetByRoleOptions{
+			Name: "切换本地用户登录",
+		}).Click(); err != nil {
+			return fmt.Errorf("点击切换本地用户登录按钮失败: %v", err)
+		}
+	} else {
+		log.Info("已是本地用户登录页")
+	}
+
 	if _, err := page.WaitForSelector(".login-form", playwright.PageWaitForSelectorOptions{
 		State:   playwright.WaitForSelectorStateVisible,
 		Timeout: playwright.Float(60000),
@@ -149,8 +167,18 @@ func loginACP(ctx context.Context, page playwright.Page, params ssoParams) error
 	}
 
 	// 点击登录按钮
-	if err := page.GetByRole("button", playwright.PageGetByRoleOptions{}).Click(); err != nil {
-		return fmt.Errorf("点击登录按钮失败: %v", err)
+	if err := page.GetByRole("button", playwright.PageGetByRoleOptions{
+		Name:  "登录",
+		Exact: playwright.Bool(true),
+	}).Click(); err != nil {
+		log.Info("点击 登录 按钮失败，错误信息: %v", zap.Error(err))
+		log.Info("尝试点击 Login 按钮...")
+		if err := page.GetByRole("button", playwright.PageGetByRoleOptions{
+			Name:  "Login",
+			Exact: playwright.Bool(true),
+		}).Click(); err != nil {
+			return fmt.Errorf("点击Login按钮失败: %v", err)
+		}
 	}
 
 	// 等待 Devops 文本出现
