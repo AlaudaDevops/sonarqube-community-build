@@ -107,7 +107,7 @@ func process(ctx context.Context, ssoParams ssoParams) (ctx2 context.Context, er
 	}
 
 	if err := loginSonarqube(ctx, page, ssoParams); err != nil {
-		log.Error("Sonarqube 登录失败: %v", zap.Error(err))
+		log.Error("Sonarqube 登录失败: ", zap.Error(err))
 		return ctx, err
 	}
 
@@ -132,9 +132,27 @@ func loginACP(ctx context.Context, page playwright.Page, params ssoParams) error
 	}
 
 	log.Info("等待登录表单出现...")
+	// 检查是否在第三方登录页面
+	buttonLocator := page.Locator(".connectors")
+	isVisible, err := buttonLocator.IsVisible()
+	if err != nil {
+		return fmt.Errorf("检查第三方登录页面失败: %v", err)
+	}
+
+	if isVisible {
+		log.Info("当前在第三方登录页面，切换到本地登录...")
+		if err := page.GetByRole("button", playwright.PageGetByRoleOptions{
+			Name: "切换本地用户登录",
+		}).Click(); err != nil {
+			return fmt.Errorf("点击切换本地用户登录按钮失败: %v", err)
+		}
+	} else {
+		log.Info("已是本地用户登录页")
+	}
+
 	if _, err := page.WaitForSelector(".login-form", playwright.PageWaitForSelectorOptions{
 		State:   playwright.WaitForSelectorStateVisible,
-		Timeout: playwright.Float(30000),
+		Timeout: playwright.Float(60000),
 	}); err != nil {
 		return fmt.Errorf("等待登录表单: %v", err)
 	}
@@ -149,8 +167,18 @@ func loginACP(ctx context.Context, page playwright.Page, params ssoParams) error
 	}
 
 	// 点击登录按钮
-	if err := page.GetByRole("button", playwright.PageGetByRoleOptions{}).Click(); err != nil {
-		return fmt.Errorf("点击登录按钮失败: %v", err)
+	if err := page.GetByRole("button", playwright.PageGetByRoleOptions{
+		Name:  "登录",
+		Exact: playwright.Bool(true),
+	}).Click(); err != nil {
+		log.Info("点击 登录 按钮失败，错误信息: %v", zap.Error(err))
+		log.Info("尝试点击 Login 按钮...")
+		if err := page.GetByRole("button", playwright.PageGetByRoleOptions{
+			Name:  "Login",
+			Exact: playwright.Bool(true),
+		}).Click(); err != nil {
+			return fmt.Errorf("点击Login按钮失败: %v", err)
+		}
 	}
 
 	// 等待 Devops 文本出现
@@ -187,9 +215,9 @@ func loginSonarqube(ctx context.Context, page playwright.Page, params ssoParams)
 			}
 			// 等待登录页面元素加载
 			log.Info("等待 Log in with OpenID Connect 按钮出现...")
-			if _, err := page.WaitForSelector(".identity-provider-link", playwright.PageWaitForSelectorOptions{
+			if err := page.Locator("#oauth-providers").WaitFor(playwright.LocatorWaitForOptions{
 				State:   playwright.WaitForSelectorStateVisible,
-				Timeout: playwright.Float(30000),
+				Timeout: playwright.Float(60000),
 			}); err == nil {
 				found = true
 				break
@@ -202,25 +230,33 @@ func loginSonarqube(ctx context.Context, page playwright.Page, params ssoParams)
 	}
 
 	log.Info("点击 Log in with OpenID Connect 按钮...")
-	if err := page.Click(".identity-provider-link"); err != nil {
+	if err := page.Locator("#oauth-providers").Click(); err != nil {
 		return fmt.Errorf("点击 Log in with OpenID Connect 按钮失败: %v", err)
 	}
 
 	// Wait for page load to complete
 	if err := page.WaitForLoadState(playwright.PageWaitForLoadStateOptions{
-		State: playwright.LoadStateNetworkidle,
+		State:   playwright.LoadStateNetworkidle,
+		Timeout: playwright.Float(60000),
 	}); err != nil {
+		log.Error("等待页面加载完成失败", zap.Error(err))
 		return err
 	}
 
+	log.Info("等待 URL 变化到登录成功状态...", zap.String("url", page.URL()))
 	// Wait for URL to change to login success state
-	// When user has no email, redirects to `user_settings/profile` page
-	// When user has email, redirects to `dashboard/projects` page
 	if err := page.WaitForURL(regexp.MustCompile(`.*(projects/create|projects)`), playwright.PageWaitForURLOptions{
-		Timeout: playwright.Float(30000),
+		Timeout: playwright.Float(60000),
 	}); err != nil {
+		// Print current URL when waiting for final redirect fails
+		currentURL := page.URL()
+		log.Error("等待 OIDC 表单失败", zap.Error(err), zap.String("current_url", currentURL))
 		return fmt.Errorf("等待 OIDC 表单失败: %v", err)
 	}
+
+	// Print final success URL
+	currentURL := page.URL()
+	log.Info("最终成功登录后的 URL", zap.String("url", currentURL))
 
 	log.Info("测试成功！")
 	return nil
