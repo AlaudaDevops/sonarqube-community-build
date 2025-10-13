@@ -22,7 +22,7 @@
             | mkdir -p output/images                                                                                                   |
         当 已导入 "sonarqube 实例" 资源
             """
-            yaml: "./testdata/sonar-oidc.yaml"
+            yaml: <template.{{ ternary "./testdata/sonar-oidc-ipv6.yaml" "./testdata/sonar-oidc.yaml" (eq .acp.protocolStack "IPv6") }}>
             """
         那么 "sonarqube" 可以正常访问
             """
