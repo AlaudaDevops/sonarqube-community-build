@@ -18,5 +18,5 @@
     并且 "sonarqube" 可以正常访问
       """
       url: http://<node.ip.random.readable>:<nodeport.http>
-      timeout: 30m
+      timeout: 19m
       """
