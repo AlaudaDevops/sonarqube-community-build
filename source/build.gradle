@@ -235,7 +235,7 @@ subprojects {
 
   ext {
     protobufVersion = '4.29.5'
-    springVersion = '6.2.12'
+    springVersion = '6.2.13'
     springSecurityVersion = '6.4.12'
     elasticSearchClientVersion = '7.17.29'
   }
@@ -340,7 +340,7 @@ subprojects {
       dependency "org.sonarsource.sonarqube:webapp-assets:$webappVersion"
 
       // please keep this list alphabetically ordered
-      dependencySet(group: 'ch.qos.logback', version: '1.5.20') {
+      dependencySet(group: 'ch.qos.logback', version: '1.5.21') {
         entry 'logback-classic'
         entry 'logback-core'
       }
@@ -395,7 +395,7 @@ subprojects {
       }
       dependency 'com.oracle.database.jdbc:ojdbc11:23.6.0.24.10'
       dependency 'com.datadoghq:dd-java-agent:1.30.1'
-      dependency 'org.aspectj:aspectjtools:1.9.24'
+      dependency 'org.aspectj:aspectjtools:1.9.25'
       dependencySet(group: 'com.squareup.okhttp3', version: '4.12.0') {
         entry 'okhttp'
         entry 'mockwebserver'
@@ -443,7 +443,7 @@ subprojects {
         entry 'log4j-api'
         entry 'log4j-to-slf4j'
       }
-      dependencySet(group: 'org.apache.tomcat.embed', version: '10.1.48') {
+      dependencySet(group: 'org.apache.tomcat.embed', version: '10.1.49') {
         entry 'tomcat-embed-core'
         entry('tomcat-embed-jasper') {
           exclude 'org.eclipse.jdt.core.compiler:ecj'
