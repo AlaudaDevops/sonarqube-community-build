@@ -144,7 +144,14 @@ func loginACP(ctx context.Context, page playwright.Page, params ssoParams) error
 		if err := page.GetByRole("button", playwright.PageGetByRoleOptions{
 			Name: "切换本地用户登录",
 		}).Click(); err != nil {
-			return fmt.Errorf("点击切换本地用户登录按钮失败: %v", err)
+			log.Info("点击切换本地用户登录按钮失败: %v", zap.Error(err))
+			log.Info("尝试点击 Log in with a local account 按钮...")
+			if err := page.GetByRole("button", playwright.PageGetByRoleOptions{
+				Name:  "Log in with a local account",
+				Exact: playwright.Bool(true),
+			}).Click(); err != nil {
+				return fmt.Errorf("点击 Log in with a local account 按钮失败: %v", err)
+			}
 		}
 	} else {
 		log.Info("已是本地用户登录页")
