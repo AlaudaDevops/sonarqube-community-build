@@ -282,6 +282,17 @@ subprojects {
     }
   }
 
+  // Force replace org.lz4:lz4-java with at.yawk.lz4:lz4-java globally
+  configurations.all {
+    resolutionStrategy.eachDependency { DependencyResolveDetails details ->
+      // Replace org.lz4:lz4-java with at.yawk.lz4:lz4-java
+      if (details.requested.group == 'org.lz4' && details.requested.name == 'lz4-java') {
+        details.useTarget group: 'at.yawk.lz4', name: 'lz4-java', version: '1.8.1'
+        details.because 'Force use at.yawk.lz4:lz4-java instead of org.lz4:lz4-java'
+      }
+    }
+  }
+
   // Central place for definition dependency versions and exclusions.
   dependencyManagement {
     dependencies {
@@ -421,7 +432,7 @@ subprojects {
       dependency 'junit:junit:4.13.2'
       dependency 'org.xmlunit:xmlunit-core:2.10.4'
       dependency 'org.xmlunit:xmlunit-matchers:2.10.4'
-      dependency 'org.lz4:lz4-java:1.8.0'
+      dependency 'at.yawk.lz4:lz4-java:1.8.1'
       dependency 'org.littleshoot:littleproxy:1.1.2'
       dependency 'net.sf.trove4j:core:3.1.0'
       dependency 'org.awaitility:awaitility:4.2.2'
@@ -794,7 +805,7 @@ subprojects {
     }
 
     dependencies {
-      bbtRuntimeOnly 'com.microsoft.sqlserver:mssql-jdbc'
+      bbtRuntimeOnly 'com.microsoft.sqlserver:mssql-jdbc:12.8.2.jre11'
       bbtRuntimeOnly 'com.oracle.database.jdbc:ojdbc11'
       bbtRuntimeOnly 'org.postgresql:postgresql'
       bbtRuntimeOnly project(':plugins:sonar-xoo-plugin')
