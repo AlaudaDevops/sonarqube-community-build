@@ -40,12 +40,15 @@ ARG NETTY_VERSION=4.1.128.Final
 ARG BC_VERSION=1.0.2.6
 # renovate: datasource=maven depName=bcpkix-jdk18on lookupName=org.bouncycastle:bcpkix-jdk18on
 ARG BCPKIX_VERSION=1.79
+# renovate: datasource=maven depName=lz4-java lookupName=at.yawk.lz4:lz4-java
+ARG LZ4_JAVA_VERSION=1.10.1
 RUN chmod +x /tmp/replace-jar.sh && \
     /tmp/replace-jar.sh io.netty netty-codec 4.1.118.Final ${NETTY_VERSION} /data/sonarqube/elasticsearch && \
     /tmp/replace-jar.sh io.netty netty-codec-http 4.1.118.Final ${NETTY_VERSION} /data/sonarqube/elasticsearch && \
     /tmp/replace-jar.sh io.netty netty-codec-http2 4.1.118.Final ${NETTY_VERSION} /data/sonarqube/elasticsearch && \
     /tmp/replace-jar.sh org.bouncycastle bc-fips 1.0.2.5 ${BC_VERSION} /data/sonarqube/elasticsearch && \
-    /tmp/replace-jar.sh org.bouncycastle bcpkix-jdk18on 1.78.1 ${BCPKIX_VERSION} /data/sonarqube/elasticsearch
+    /tmp/replace-jar.sh org.bouncycastle bcpkix-jdk18on 1.78.1 ${BCPKIX_VERSION} /data/sonarqube/elasticsearch && \
+    /tmp/replace-jar.sh at.yawk.lz4 lz4-java 1.8.0 ${LZ4_JAVA_VERSION} /data/sonarqube/elasticsearch
 
 FROM docker-mirrors.alauda.cn/library/eclipse-temurin:${JRE_IMAGE_VERSION}
 
