@@ -5,8 +5,6 @@ WORKDIR /app
 COPY . /app
 
 ENV GOPROXY='https://build-nexus.alauda.cn/repository/golang/,direct'
-RUN PWGO_VER=$(grep -oE "playwright-go v\S+" /app/testing/go.mod | sed 's/playwright-go //g') \
-    && go install github.com/playwright-community/playwright-go/cmd/playwright@${PWGO_VER}
 RUN set -eux \
     && mkdir -p /tools/bin && chmod -R 777 /tools/bin \
     && cd /app/testing \
@@ -23,8 +21,6 @@ COPY --chown=nonroot:nonroot ./chart /app/chart
 COPY --chown=nonroot:nonroot ./testing /app/testing
 COPY --chown=nonroot:nonroot --from=builder /tools/bin/sonarqube-e2e.test /app/bin/sonarqube-e2e.test
 COPY --chown=nonroot:nonroot --from=builder /go/bin/playwright /app/bin/playwright
-
-RUN /app/bin/playwright install chromium --with-deps
 
 WORKDIR /app/testing
 

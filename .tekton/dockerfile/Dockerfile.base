@@ -1,6 +1,20 @@
+FROM docker-mirrors.alauda.cn/library/golang:1.25.5-bookworm AS builder
+
+WORKDIR /app
+
+COPY . /app
+
+ENV GOPROXY='https://build-nexus.alauda.cn/repository/golang/,direct'
+RUN PWGO_VER=$(grep -oE "playwright-go v\S+" /app/testing/go.mod | sed 's/playwright-go //g') \
+    && go install github.com/playwright-community/playwright-go/cmd/playwright@${PWGO_VER}
+
 FROM docker-mirrors.alauda.cn/library/openjdk:26-ea-17-jdk-slim-bookworm
 
 WORKDIR /app
+
+COPY --from=builder /go/bin/playwright /app/bin/playwright
+
+RUN /app/bin/playwright install chromium --with-deps
 
 ARG SONAR_SCANNER_VERSION=7.1.0.4889
 RUN set -ex; \
