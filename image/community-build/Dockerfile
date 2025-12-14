@@ -35,7 +35,7 @@ RUN set -eux \
 COPY --chown=sonarsource:sonarsource image/community-build/replace-jar.sh /tmp/replace-jar.sh
 
 # renovate: datasource=maven depName=netty-codec lookupName=io.netty:netty-codec
-ARG NETTY_VERSION=4.1.128.Final
+ARG NETTY_VERSION=4.1.129.Final
 # renovate: datasource=maven depName=bc-fips lookupName=org.bouncycastle:bc-fips
 ARG BC_VERSION=1.0.2.6
 # renovate: datasource=maven depName=bcpkix-jdk18on lookupName=org.bouncycastle:bcpkix-jdk18on
