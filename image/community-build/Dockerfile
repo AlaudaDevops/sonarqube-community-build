@@ -134,6 +134,11 @@ ENV ES_TMPDIR="${SQ_TEMP_DIR}"
 
 COPY --from=runner / /
 
+# remove sniff tools
+RUN set +e; \
+  ls -d /usr/bin/* | grep -E "cpp|readelf|gcc|nc|netcat|sync" | xargs rm; \
+  rm /usr/lib/apt/methods/mirror
+
 VOLUME ["${SQ_DATA_DIR}", "${SQ_EXTENSIONS_DIR}", "${SQ_LOGS_DIR}", "${SQ_TEMP_DIR}"]
 
 WORKDIR ${SONARQUBE_HOME}
