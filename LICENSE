@@ -1,0 +1,9 @@
+sonarqube-community-build Licensing Summary
+
+This repository contains multiple upstream components with different licenses. Use of the code and distributions from this repository must comply with the license terms applicable to each component:
+
+- Helm chart content in `chart/` is licensed under the MIT License. The full text is available at `chart/LICENSE`.
+- Source code in `source/` is derived from the SonarSource SonarQube project and is licensed under the GNU Lesser General Public License version 3.0. The full text is available at `source/LICENSE.txt`.
+- The source tree depends on Elasticsearch client artifacts (for example `org.elasticsearch.client:elasticsearch-rest-high-level-client` and `org.elasticsearch.plugin:transport-netty4-client`) that are provided under the Elastic License 2.0. A copy of that license is included at `source/ELASTIC-LICENSE-2.0.txt`. These artifacts are not licensed under an OSI-approved open source license.
+
+Unless otherwise noted, files outside `chart/` follow the licensing that applies to the SonarQube source in `source/`. Third-party dependencies remain subject to their own licenses; consult the relevant license files when redistributing.
