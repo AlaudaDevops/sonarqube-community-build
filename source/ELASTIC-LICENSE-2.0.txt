@@ -1,0 +1,33 @@
+Elastic License 2.0 (ELv2)
+
+This is a convenience copy of the Elastic License 2.0. The canonical text is published by Elasticsearch B.V. at https://www.elastic.co/licensing/elastic-license-2.0 and governs use of the Elasticsearch components included in this repository.
+
+Acceptance
+By using the software, you agree to all of the terms and conditions of this license. If you do not agree, do not use, copy, or distribute the software.
+
+Copyright License
+Subject to the terms and conditions of this license, the licensor grants you a non-exclusive, royalty-free, worldwide, non-transferable, non-sublicensable license to use, copy, distribute, make available, and prepare derivative works of the software.
+
+Limitations
+1. You may not provide the software to third parties as a managed service, where the service provides users with access to any substantial set of the features or functionality of the software.
+2. You may not move, change, disable, or circumvent the license key functionality in the software, and you may not remove or obscure any functionality in the software that is used to enforce the terms of this license.
+3. You may not remove or obscure any licensing, copyright, or other notices of the licensor in the software. A copy of this license must accompany any redistribution.
+4. Any derivative works that you create must be licensed under this Elastic License 2.0.
+
+Trademarks
+This license does not grant you any right to use the licensor’s trademarks, service marks, or logos.
+
+Patents
+This license does not grant you any patent rights, whether by implication, estoppel, or otherwise.
+
+Termination
+If you breach any term of this license, the license terminates automatically. Upon termination, you must stop using the software and destroy all copies in your possession or control. Any sublicenses you have granted must also terminate.
+
+No Other Rights
+The licensor reserves all rights not expressly granted to you in this license.
+
+Disclaimer of Warranty
+THE SOFTWARE IS PROVIDED “AS IS” AND WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, WHETHER EXPRESS OR IMPLIED, INCLUDING, WITHOUT LIMITATION, WARRANTIES OR CONDITIONS OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, OR TITLE.
+
+Limitation of Liability
+IN NO EVENT WILL THE LICENSOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES, HOWEVER CAUSED AND UNDER ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
