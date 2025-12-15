@@ -4,3 +4,5 @@ mailto:info AT sonarsource DOT com
 
 This product includes software developed at
 SonarSource (https://www.sonarsource.com/).
+
+This product also includes Elasticsearch client components and related modules that are licensed under the Elastic License 2.0. The Elastic License 2.0 text is provided in `ELASTIC-LICENSE-2.0.txt`; these components remain subject to their respective copyright holders, including Elasticsearch B.V. and contributors. All required notices must be retained in any redistribution.
