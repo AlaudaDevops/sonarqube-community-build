@@ -50,7 +50,7 @@ RUN chmod +x /tmp/replace-jar.sh && \
     /tmp/replace-jar.sh org.bouncycastle bcpkix-jdk18on 1.78.1 ${BCPKIX_VERSION} /data/sonarqube/elasticsearch && \
     /tmp/replace-jar.sh at.yawk.lz4 lz4-java 1.8.0 ${LZ4_JAVA_VERSION} /data/sonarqube/elasticsearch
 
-FROM docker-mirrors.alauda.cn/library/eclipse-temurin:${JRE_IMAGE_VERSION}
+FROM docker-mirrors.alauda.cn/library/eclipse-temurin:${JRE_IMAGE_VERSION} as runner
 
 LABEL io.k8s.description="SonarQube Community Build is a self-managed, automatic code review tool that systematically helps you deliver Clean Code."
 LABEL io.openshift.min-cpu=400m
@@ -79,7 +79,9 @@ ENV DOCKER_RUNNING="true" \
 ENV ES_TMPDIR="${SQ_TEMP_DIR}"
 
 RUN mkdir -p /opt \
-  && useradd --system --uid 1000 --gid 0 sonarqube;
+  && useradd --system --uid 1000 --gid 0 sonarqube \
+  && usermod -s /usr/sbin/nologin sync;
+
 COPY --from=builder --chown=sonarqube:sonarqube /data/sonarqube/ ${SONARQUBE_HOME}
 
 RUN set -eux; \
@@ -95,16 +97,44 @@ RUN set -eux; \
   ln -s ${SONARQUBE_HOME}/lib/sonar-application-${SONARQUBE_VERSION}.jar ${SONARQUBE_HOME}/lib/sonarqube.jar; \
   rm -rf /var/lib/apt/lists/*;
 
-VOLUME ["${SQ_DATA_DIR}", "${SQ_EXTENSIONS_DIR}", "${SQ_LOGS_DIR}", "${SQ_TEMP_DIR}"]
-
 COPY --chown=sonarqube:sonarqube image/community-build/entrypoint.sh ${SONARQUBE_HOME}/docker/
 
-# replace go-plugin to support arm architecture
-# pipeline: https://edge.alauda.cn/console-devops/workspace/devops/ci?namespace=tools&cluster=business-build&buildName=sonarqube-go-plugin
-# RUN set -eux; \
-#     rm $(find /opt/sonarqube/lib/extensions/ -name "sonar-go-plugin*"); \
-#     curl -o ${SONARQUBE_HOME}/lib/extensions/sonar-go-plugin-${SONAR_GO_PLUGIN_VERSION}.jar ${REPO_HOST}/repository/alauda/sonar-plugin/sonar-go-plugin-${SONAR_GO_PLUGIN_VERSION}-all.jar; \
-#     chown -R 1000:1000 ${SONARQUBE_HOME}/lib/extensions/sonar-go-plugin-${SONAR_GO_PLUGIN_VERSION}.jar
+# remove sniff tools
+RUN set +e; \
+  ls -d /usr/bin/* | grep -E "cpp|readelf|gcc|nc|netcat" | xargs rm; \
+  rm /usr/lib/apt/methods/mirror
+
+FROM docker-mirrors.alauda.cn/library/eclipse-temurin:${JRE_IMAGE_VERSION}
+
+LABEL io.k8s.description="SonarQube Community Build is a self-managed, automatic code review tool that systematically helps you deliver Clean Code."
+LABEL io.openshift.min-cpu=400m
+LABEL io.openshift.min-memory=2048M
+LABEL io.openshift.non-scalable=true
+LABEL io.openshift.tags=sonarqube,static-code-analysis,code-quality,clean-code
+LABEL org.opencontainers.image.url=https://github.com/SonarSource/docker-sonarqube
+
+ENV LANG='en_US.UTF-8' \
+    LANGUAGE='en_US:en' \
+    LC_ALL='en_US.UTF-8'
+
+ARG SONARQUBE_VERSION=25.1.0.102122
+
+# SonarQube setup
+ENV DOCKER_RUNNING="true" \
+    JAVA_HOME='/opt/java/openjdk' \
+    SONARQUBE_HOME=/opt/sonarqube \
+    SONAR_VERSION="${SONARQUBE_VERSION}" \
+    SQ_DATA_DIR="/opt/sonarqube/data" \
+    SQ_EXTENSIONS_DIR="/opt/sonarqube/extensions" \
+    SQ_LOGS_DIR="/opt/sonarqube/logs" \
+    SQ_TEMP_DIR="/opt/sonarqube/temp"
+
+# Separate stage to use variable expansion
+ENV ES_TMPDIR="${SQ_TEMP_DIR}"
+
+COPY --from=runner / /
+
+VOLUME ["${SQ_DATA_DIR}", "${SQ_EXTENSIONS_DIR}", "${SQ_LOGS_DIR}", "${SQ_TEMP_DIR}"]
 
 WORKDIR ${SONARQUBE_HOME}
 EXPOSE 9000
