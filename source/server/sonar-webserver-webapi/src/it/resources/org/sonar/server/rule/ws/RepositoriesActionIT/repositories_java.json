@@ -1,9 +1,0 @@
-{
-  "repositories": [
-    {
-      "key": "java",
-      "name": "SonarQube",
-      "language": "ws"
-    }
-  ]
-}

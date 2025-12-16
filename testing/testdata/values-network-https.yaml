@@ -1,8 +1,0 @@
-ingress:
-  enabled: true
-  hosts:
-    - name: test-sonarqube-ingress-https.example.com
-  tls:
-    - secretName: test-tls-cert
-      hosts:
-        - test-sonarqube-ingress-https.example.com

@@ -1,5 +1,0 @@
-persistence:
-  enabled: false
-  host:
-    nodeName: <node.name.random>
-    path: /tmp/sonarqube-<template.{{randAlphaNum 10}}>

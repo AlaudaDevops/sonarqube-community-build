@@ -1,5 +1,0 @@
-sonar {
-  properties {
-    property 'sonar.projectName', "${projectTitle} :: Server :: Parent"
-  }
-}
