@@ -35,13 +35,13 @@ RUN set -eux \
 COPY --chown=sonarsource:sonarsource image/community-build/replace-jar.sh /tmp/replace-jar.sh
 
 # renovate: datasource=maven depName=netty-codec lookupName=io.netty:netty-codec
-ARG NETTY_VERSION=4.1.129.Final
+ARG NETTY_VERSION=4.1.130.Final
 # renovate: datasource=maven depName=bc-fips lookupName=org.bouncycastle:bc-fips
 ARG BC_VERSION=1.0.2.6
 # renovate: datasource=maven depName=bcpkix-jdk18on lookupName=org.bouncycastle:bcpkix-jdk18on
 ARG BCPKIX_VERSION=1.79
 # renovate: datasource=maven depName=lz4-java lookupName=at.yawk.lz4:lz4-java
-ARG LZ4_JAVA_VERSION=1.10.1
+ARG LZ4_JAVA_VERSION=1.10.2
 RUN chmod +x /tmp/replace-jar.sh && \
     /tmp/replace-jar.sh io.netty netty-codec 4.1.118.Final ${NETTY_VERSION} /data/sonarqube/elasticsearch && \
     /tmp/replace-jar.sh io.netty netty-codec-http 4.1.118.Final ${NETTY_VERSION} /data/sonarqube/elasticsearch && \
