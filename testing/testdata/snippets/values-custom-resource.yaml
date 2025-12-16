@@ -1,9 +1,0 @@
-resources: 
-  limits:
-    cpu: 800m
-    memory: 4Gi
-  requests:
-    cpu: 400m
-    memory: 2Gi
-initContainers:
-  resources: {}

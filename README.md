@@ -1,8 +1,4 @@
 # sonarqube-community-build
 
-### 添加源代码
-
-```bash
-git remote add source https://github.com/SonarSource/sonarqube.git
-git fetch source --tags
-```
+The core branches of the current repository are `alauda-*`.
+The `main` branch is currently maintained only for Renovate configuration.

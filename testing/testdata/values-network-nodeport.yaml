@@ -1,4 +1,0 @@
-service:
-  name: sonarqube
-  type: NodePort
-  nodePort: <nodeport.http>
