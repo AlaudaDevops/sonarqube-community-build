@@ -1,0 +1,77 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: sonar-java-image
+  annotations:
+    pipelinesascode.tekton.dev/on-comment: "^((/test-all)|(/build-java-image))$"
+    pipelinesascode.tekton.dev/max-keep-runs: "5"
+spec:
+  pipelineRef:
+    resolver: hub
+    params:
+      - name: catalog
+        value: alauda
+      - name: type
+        value: tekton
+      - name: kind
+        value: pipeline
+      - name: name
+        value: clone-image-build-test-scan
+      - name: version
+        value: "0.2"
+
+  params:
+    - name: git-url
+      value: "{{ repo_url }}"
+    - name: git-revision
+      value: "{{ source_branch }}"
+    - name: git-commit
+      value: "{{ revision }}"
+    - name: pull-request-number
+      value: "{{ pull_request_number }}"
+
+    - name: image-repository
+      value: build-harbor.alauda.cn/devops/sonarqube-ce-java-build-202501
+
+    - name: tags
+      value:
+        - latest
+
+    - name: dockerfile-path
+      value: .tekton/dockerfile/Dockerfile.java
+
+    - name: context
+      value: ".tekton/dockerfile"
+
+    - name: file-list-for-commit-sha
+      value:
+        - .tekton/dockerfile/Dockerfile.java
+
+    - name: ignore-trivy-scan
+      value: "true"
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteMany
+          resources:
+            requests:
+              storage: 1Gi
+    - name: dockerconfig
+      secret:
+        secretName: build-harbor.kauto.docfj
+    - name: basic-auth
+      secret:
+        secretName: "{{ git_auth_secret }}"
+    - name: gitversion-config
+      configMap:
+        name: gitversion-config
+
+  taskRunTemplate:
+    podTemplate:
+      securityContext:
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        fsGroupChangePolicy: "OnRootMismatch"
