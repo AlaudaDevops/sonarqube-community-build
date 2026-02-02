@@ -1,4 +1,4 @@
-FROM build-harbor.alauda.cn/ops/alpine:3.21.5-alauda-202512020944
+FROM build-harbor.alauda.cn/ops/alpine:3.21.5-alauda-202601301100
 
 ADD plugins.txt /tmp/plugins/
 WORKDIR /tmp/plugins
