@@ -8,8 +8,8 @@ spec:
       description: "Workspace for storing source code"
     - name: basic-auth
       description: "Workspace for git basic authentication"
-    - name: dockerconfig
-      description: "Workspace for Docker configuration"
+    - name: registryconfig
+      description: "Workspace for Container configuration"
     - name: cache
       description: "Workspace for cache files"
   params:
@@ -184,22 +184,22 @@ spec:
           workspace: cache
       taskSpec:
         workspaces:
-        - name: source
-        - name: cache
+          - name: source
+          - name: cache
         params:
           - name: script
             description: >-
-                Customized script to execute.
-                The task will enforce running the script as a non-root user.
-                If the image used in this task defaults to starting with the root user,
-                additional configuration will be required to set up a non-root user.
-                Please refer to the task's README.md document for details.
+              Customized script to execute.
+              The task will enforce running the script as a non-root user.
+              If the image used in this task defaults to starting with the root user,
+              additional configuration will be required to set up a non-root user.
+              Please refer to the task's README.md document for details.
             type: string
             default:
         steps:
           - name: run-script
             # renovate: datasource=docker depName=eclipse-temurin
-            image: docker-mirrors.alauda.cn/library/eclipse-temurin:17.0.15_6-jdk-jammy
+            image: hub-mirrors.alauda.cn/library/eclipse-temurin:17.0.15_6-jdk-jammy
             imagePullPolicy: Always
             computeResources:
               requests:
@@ -237,20 +237,20 @@ spec:
       workspaces:
         - name: source
           workspace: source
-        - name: dockerconfig
-          workspace: dockerconfig
+        - name: registryconfig
+          workspace: registryconfig
       params:
         - name: reuse-artifact
           value: "true"
         - name: buildx-image
-          value: registry.alauda.cn:60080/devops/nonroot/alauda-docker-buildx:latest
+          value: registry.alauda.cn:60080/devops/nonroot/alauda-buildx:latest
         - name: image-url
           value: build-harbor.alauda.cn/devops/sonarqube
         - name: image-tags
           value:
             - v2025.1.0-g$(tasks.get-git-meta.results.object-result.short_id)
-        - name: dockerfile
-          value: image/community-build/Dockerfile
+        - name: containerfile
+          value: image/community-build/Containerfile
         - name: context
           value: .
         - name: build-args
@@ -275,20 +275,20 @@ spec:
       workspaces:
         - name: source
           workspace: source
-        - name: dockerconfig
-          workspace: dockerconfig
+        - name: registryconfig
+          workspace: registryconfig
       params:
         - name: reuse-artifact
           value: "true"
         - name: buildx-image
-          value: registry.alauda.cn:60080/devops/nonroot/alauda-docker-buildx:latest
+          value: registry.alauda.cn:60080/devops/nonroot/alauda-buildx:latest
         - name: image-url
           value: build-harbor.alauda.cn/devops/sonarqube-plugins
         - name: image-tags
           value:
             - v2025.1.0-g$(tasks.get-git-meta.results.object-result.short_id)
-        - name: dockerfile
-          value: image/plugin/Dockerfile
+        - name: containerfile
+          value: image/plugin/Containerfile
         - name: context
           value: image/plugin
     - name: image-scan

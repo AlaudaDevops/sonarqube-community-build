@@ -37,15 +37,15 @@ spec:
       value:
         - latest
 
-    - name: dockerfile-path
-      value: .tekton/dockerfile/Dockerfile.base
+    - name: containerfile-path
+      value: .tekton/containerfile/Containerfile.base
 
     - name: context
-      value: ".tekton/dockerfile"
+      value: ".tekton/containerfile"
 
     - name: file-list-for-commit-sha
       value:
-        - .tekton/dockerfile/Dockerfile.base
+        - .tekton/containerfile/Containerfile.base
 
     - name: ignore-trivy-scan
       value: "true"
@@ -58,7 +58,7 @@ spec:
           resources:
             requests:
               storage: 1Gi
-    - name: dockerconfig
+    - name: registryconfig
       secret:
         secretName: build-harbor.kauto.docfj
     - name: basic-auth

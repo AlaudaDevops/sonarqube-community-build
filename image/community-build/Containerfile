@@ -3,7 +3,7 @@
 ARG JDK_IMAGE_VERSION=17.0.17_10-jdk-jammy
 # renovate: datasource=docker depName=eclipse-temurin
 ARG JRE_IMAGE_VERSION=17.0.17_10-jre-jammy
-FROM docker-mirrors.alauda.cn/library/eclipse-temurin:${JDK_IMAGE_VERSION} as builder
+FROM hub-mirrors.alauda.cn/library/eclipse-temurin:${JDK_IMAGE_VERSION} as builder
 
 RUN mkdir -p /usr/share/man/man1 \
   && apt-get update \
@@ -50,7 +50,7 @@ RUN chmod +x /tmp/replace-jar.sh && \
     /tmp/replace-jar.sh org.bouncycastle bcpkix-jdk18on 1.78.1 ${BCPKIX_VERSION} /data/sonarqube/elasticsearch && \
     /tmp/replace-jar.sh at.yawk.lz4 lz4-java 1.8.0 ${LZ4_JAVA_VERSION} /data/sonarqube/elasticsearch
 
-FROM docker-mirrors.alauda.cn/library/eclipse-temurin:${JRE_IMAGE_VERSION} as runner
+FROM hub-mirrors.alauda.cn/library/eclipse-temurin:${JRE_IMAGE_VERSION} as runner
 
 LABEL io.k8s.description="SonarQube Community Build is a self-managed, automatic code review tool that systematically helps you deliver Clean Code."
 LABEL io.openshift.min-cpu=400m
@@ -104,7 +104,7 @@ RUN set +e; \
   ls -d /usr/bin/* | grep -E "cpp|readelf|gcc|nc|netcat" | xargs rm; \
   rm /usr/lib/apt/methods/mirror
 
-FROM docker-mirrors.alauda.cn/library/eclipse-temurin:${JRE_IMAGE_VERSION}
+FROM hub-mirrors.alauda.cn/library/eclipse-temurin:${JRE_IMAGE_VERSION}
 
 LABEL io.k8s.description="SonarQube Community Build is a self-managed, automatic code review tool that systematically helps you deliver Clean Code."
 LABEL io.openshift.min-cpu=400m

@@ -1,4 +1,4 @@
-FROM docker-mirrors.alauda.cn/library/openjdk:26-ea-17-jdk-slim-bookworm
+FROM hub-mirrors.alauda.cn/library/openjdk:26-ea-17-jdk-slim-bookworm
 
 WORKDIR /app
 

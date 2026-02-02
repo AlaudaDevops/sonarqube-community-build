@@ -52,15 +52,17 @@ spec:
     - name: build-test-image
       value:
         image-repository: build-harbor.alauda.cn/devops/sonarqube-ce-test
-        dockerfile-path: testing/Dockerfile
+        containerfile-path: testing/Containerfile
     - name: test
       value:
         command: |
           set -x
+          cd $(workspaces.source.path)/testing
           export KUBECONFIG=$(workspaces.config.path)/vcluster-config
+          chmod 600 $(workspaces.config.path)/vcluster-config
           kubectl config view
 
-          trap 'chmod -R a+r allure-results/* && mkdir -p $(workspaces.source.path)/testing/allure-results && cp -r allure-results/* $(workspaces.source.path)/testing/allure-results/' EXIT
+
           echo "run integration tests..."
           export REPORT=allure
           export TAGS='@sonarqube-chart-deploy'
@@ -71,6 +73,8 @@ spec:
           sync:
             toHost:
               ingresses:
+                enabled: true
+              persistentVolumes:
                 enabled: true
             fromHost:
               storageClasses:
@@ -102,15 +106,16 @@ spec:
     - name: source
       volumeClaimTemplate:
         spec:
+          storageClassName: topolvm
           accessModes:
-            - ReadWriteMany
+            - ReadWriteOnce
           resources:
             requests:
               storage: 1Gi
     - name: upload-conf
       secret:
         secretName: upload-allure-report-conf
-    - name: dockerconfig
+    - name: registryconfig
       secret:
         secretName: build-harbor.kauto.docfj
     - name: basic-auth
@@ -119,4 +124,3 @@ spec:
     - name: gitversion-config
       configMap:
         name: gitversion-config
-
