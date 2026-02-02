@@ -45,13 +45,12 @@ spec:
     - name: basic-auth
       secret:
         secretName: github-credentials
-    - name: dockerconfig
+    - name: registryconfig
       secret:
         secretName: build-harbor.kauto.docfj
     - name: cache
       persistentVolumeClaim:
         claimName: sonar-build-cache
-
 
   taskRunTemplate:
     # 让所有任务都以非 root 用户运行。

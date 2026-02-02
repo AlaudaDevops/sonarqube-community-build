@@ -1,4 +1,4 @@
-FROM docker-mirrors.alauda.cn/library/golang:1.25.5-bookworm AS builder
+FROM hub-mirrors.alauda.cn/library/golang:1.25.5-bookworm AS builder
 
 WORKDIR /app
 
