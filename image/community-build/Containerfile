@@ -32,14 +32,6 @@ RUN set -eux \
 
 COPY --chown=sonarsource:sonarsource image/community-build/replace-jar.sh /tmp/replace-jar.sh
 
-# renovate: datasource=maven depName=netty-codec lookupName=io.netty:netty-codec
-ARG NETTY_VERSION=4.1.131.Final
-# renovate: datasource=maven depName=lz4-java lookupName=at.yawk.lz4:lz4-java
-ARG LZ4_JAVA_VERSION=1.10.3
-RUN chmod +x /tmp/replace-jar.sh && \
-    /tmp/replace-jar.sh io.netty netty-codec-http 4.1.126.Final ${NETTY_VERSION} /data/sonarqube/elasticsearch && \
-    /tmp/replace-jar.sh at.yawk.lz4 lz4-java 1.8.1 ${LZ4_JAVA_VERSION} /data/sonarqube/elasticsearch
-
 FROM hub-mirrors.alauda.cn/library/eclipse-temurin:${JDK_IMAGE_VERSION} as runner
 
 LABEL io.k8s.description="SonarQube Community Build is a self-managed, automatic code review tool that systematically helps you deliver Clean Code."
