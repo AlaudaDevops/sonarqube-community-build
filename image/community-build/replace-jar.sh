@@ -415,7 +415,7 @@ main() {
     # Find old version jar files
     local old_files
     if ! old_files=$(find_jar_files "$GROUP_ID" "$ARTIFACT_ID" "$OLD_VERSION" "$TARGET_DIR"); then
-        log_error "No old version jar files found, operation terminated"
+        log_error "No old version jar files found, operation terminated: $GROUP_ID:$ARTIFACT_ID:$OLD_VERSION"
         exit 1
     fi
     

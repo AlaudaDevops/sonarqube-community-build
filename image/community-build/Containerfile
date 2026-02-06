@@ -1,8 +1,6 @@
 # source: https://github.com/SonarSource/sonarqube/blob/170bd61e5e75fb3668dd31dc71570f5e40a800fd/.cirrus/Dockerfile#L1
 # renovate: datasource=docker depName=eclipse-temurin
 ARG JDK_IMAGE_VERSION=17.0.17_10-jdk-jammy
-# renovate: datasource=docker depName=eclipse-temurin
-ARG JRE_IMAGE_VERSION=17.0.17_10-jre-jammy
 FROM hub-mirrors.alauda.cn/library/eclipse-temurin:${JDK_IMAGE_VERSION} as builder
 
 RUN mkdir -p /usr/share/man/man1 \
@@ -32,24 +30,25 @@ RUN set -eux \
   && chmod -R 550 /data/sonarqube \
   && chmod -R 770 /data/sonarqube/data /data/sonarqube/extensions /data/sonarqube/logs /data/sonarqube/temp
 
-#COPY --chown=sonarsource:sonarsource image/community-build/replace-jar.sh /tmp/replace-jar.sh
-# # renovate: datasource=maven depName=netty-codec lookupName=io.netty:netty-codec
-# ARG NETTY_VERSION=4.1.130.Final
+COPY --chown=sonarsource:sonarsource image/community-build/replace-jar.sh /tmp/replace-jar.sh
+
+# renovate: datasource=maven depName=netty-codec lookupName=io.netty:netty-codec
+ARG NETTY_VERSION=4.1.130.Final
 # # renovate: datasource=maven depName=bc-fips lookupName=org.bouncycastle:bc-fips
 # ARG BC_VERSION=1.0.2.6
 # # renovate: datasource=maven depName=bcpkix-jdk18on lookupName=org.bouncycastle:bcpkix-jdk18on
 # ARG BCPKIX_VERSION=1.79
-# # renovate: datasource=maven depName=lz4-java lookupName=at.yawk.lz4:lz4-java
-# ARG LZ4_JAVA_VERSION=1.10.3
-# RUN chmod +x /tmp/replace-jar.sh && \
+# renovate: datasource=maven depName=lz4-java lookupName=at.yawk.lz4:lz4-java
+ARG LZ4_JAVA_VERSION=1.10.3
+RUN chmod +x /tmp/replace-jar.sh && \
 #     /tmp/replace-jar.sh io.netty netty-codec 4.1.118.Final ${NETTY_VERSION} /data/sonarqube/elasticsearch && \
-#     /tmp/replace-jar.sh io.netty netty-codec-http 4.1.118.Final ${NETTY_VERSION} /data/sonarqube/elasticsearch && \
+    /tmp/replace-jar.sh io.netty netty-codec-http 4.1.126.Final ${NETTY_VERSION} /data/sonarqube/elasticsearch && \
 #     /tmp/replace-jar.sh io.netty netty-codec-http2 4.1.118.Final ${NETTY_VERSION} /data/sonarqube/elasticsearch && \
 #     /tmp/replace-jar.sh org.bouncycastle bc-fips 1.0.2.5 ${BC_VERSION} /data/sonarqube/elasticsearch && \
 #     /tmp/replace-jar.sh org.bouncycastle bcpkix-jdk18on 1.78.1 ${BCPKIX_VERSION} /data/sonarqube/elasticsearch && \
-#     /tmp/replace-jar.sh at.yawk.lz4 lz4-java 1.8.0 ${LZ4_JAVA_VERSION} /data/sonarqube/elasticsearch
+    /tmp/replace-jar.sh at.yawk.lz4 lz4-java 1.8.1 ${LZ4_JAVA_VERSION} /data/sonarqube/elasticsearch
 
-FROM hub-mirrors.alauda.cn/library/eclipse-temurin:${JRE_IMAGE_VERSION} as runner
+FROM hub-mirrors.alauda.cn/library/eclipse-temurin:${JDK_IMAGE_VERSION} as runner
 
 LABEL io.k8s.description="SonarQube Community Build is a self-managed, automatic code review tool that systematically helps you deliver Clean Code."
 LABEL io.openshift.min-cpu=400m
@@ -103,7 +102,7 @@ RUN set +e; \
   ls -d /usr/bin/* | grep -E "cpp|readelf|gcc|nc|netcat" | xargs rm; \
   rm /usr/lib/apt/methods/mirror
 
-FROM hub-mirrors.alauda.cn/library/eclipse-temurin:${JRE_IMAGE_VERSION}
+FROM hub-mirrors.alauda.cn/library/eclipse-temurin:${JDK_IMAGE_VERSION}
 
 LABEL io.k8s.description="SonarQube Community Build is a self-managed, automatic code review tool that systematically helps you deliver Clean Code."
 LABEL io.openshift.min-cpu=400m

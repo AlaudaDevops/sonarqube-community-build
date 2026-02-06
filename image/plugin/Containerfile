@@ -1,5 +1,8 @@
 FROM build-harbor.alauda.cn/ops/alpine:3.21.5-alauda-202601301100
 
+# Install CA certificates for TLS validation
+RUN apk add --no-cache ca-certificates wget
+
 ADD plugins.txt /tmp/plugins/
 WORKDIR /tmp/plugins
-RUN cat /tmp/plugins/plugins.txt | xargs wget 
+RUN cat /tmp/plugins/plugins.txt | xargs wget
