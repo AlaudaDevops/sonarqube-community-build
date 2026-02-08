@@ -1,6 +1,6 @@
 # source: https://github.com/SonarSource/sonarqube/blob/170bd61e5e75fb3668dd31dc71570f5e40a800fd/.cirrus/Dockerfile#L1
 # renovate: datasource=docker depName=eclipse-temurin
-ARG JDK_IMAGE_VERSION=17.0.17_10-jdk-jammy
+ARG JDK_IMAGE_VERSION=17.0.18_8-jdk-jammy
 FROM hub-mirrors.alauda.cn/library/eclipse-temurin:${JDK_IMAGE_VERSION} as builder
 
 RUN mkdir -p /usr/share/man/man1 \
@@ -31,14 +31,6 @@ RUN set -eux \
   && chmod -R 770 /data/sonarqube/data /data/sonarqube/extensions /data/sonarqube/logs /data/sonarqube/temp
 
 COPY --chown=sonarsource:sonarsource image/community-build/replace-jar.sh /tmp/replace-jar.sh
-
-# renovate: datasource=maven depName=netty-codec lookupName=io.netty:netty-codec
-ARG NETTY_VERSION=4.1.130.Final
-# renovate: datasource=maven depName=lz4-java lookupName=at.yawk.lz4:lz4-java
-ARG LZ4_JAVA_VERSION=1.10.3
-RUN chmod +x /tmp/replace-jar.sh && \
-    /tmp/replace-jar.sh io.netty netty-codec-http 4.1.126.Final ${NETTY_VERSION} /data/sonarqube/elasticsearch && \
-    /tmp/replace-jar.sh at.yawk.lz4 lz4-java 1.8.1 ${LZ4_JAVA_VERSION} /data/sonarqube/elasticsearch
 
 FROM hub-mirrors.alauda.cn/library/eclipse-temurin:${JDK_IMAGE_VERSION} as runner
 
