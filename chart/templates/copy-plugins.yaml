@@ -6,6 +6,47 @@ metadata:
 data:
   copy_plugins.sh: |-
       #!/bin/bash
+      # Load environment variables from mounted config files (STIG compliant)
+      load_env_from_directory() {
+          local dir="$1"
+          local should_delete="$2"
+          if [ -d "$dir" ]; then
+              for file in "$dir"/*; do
+                  if [ -f "$file" ]; then
+                      local var_name
+                      var_name=$(basename "$file")
+                      export "$var_name"="$(cat "$file")"
+                      if [ "$should_delete" = "true" ]; then
+                          rm -f "$file"
+                      fi
+                  fi
+              done
+          fi
+      }
+
+      # Load JDBC config and delete files after reading
+      load_env_from_directory /etc/sonar/config/jdbc true
+
+      # Load extra secrets and delete files after reading
+      if [ -d "/etc/sonar/config/secrets" ]; then
+          for secret_dir in /etc/sonar/config/secrets/*/; do
+              load_env_from_directory "$secret_dir" true
+          done
+          rmdir /etc/sonar/config/secrets/*/ 2>/dev/null || true
+      fi
+
+      # Load extra configmaps (non-sensitive, keep files)
+      if [ -d "/etc/sonar/config/configmaps" ]; then
+          for configmap_dir in /etc/sonar/config/configmaps/*/; do
+              load_env_from_directory "$configmap_dir" false
+          done
+      fi
+
+      # Set JDBC password from projected volume
+      if [ -f /run/postgresql/secret/SONAR_JDBC_PASSWORD ]; then
+        export SONAR_JDBC_PASSWORD=$(cat /run/postgresql/secret/SONAR_JDBC_PASSWORD)
+      fi
+
       {{- if .Values.plugins.deleteDefaultPlugins }}
       rm -f /opt/sonarqube/extensions/plugins/*.jar
       {{- end }}
@@ -23,9 +64,5 @@ data:
       done
       cp /opt/sonarqube/extensions/plugins/tmp/*.jar /opt/sonarqube/extensions/plugins/
       {{- end }}
-      # set jdbc password env
-      if [ -f /run/postgresql/secret/SONAR_JDBC_PASSWORD ]; then
-        export SONAR_JDBC_PASSWORD=$(cat /run/postgresql/secret/SONAR_JDBC_PASSWORD)
-      fi
       # start SonarQube
       /opt/sonarqube/docker/entrypoint.sh
