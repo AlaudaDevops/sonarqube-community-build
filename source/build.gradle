@@ -235,7 +235,7 @@ subprojects {
 
   ext {
     protobufVersion = '4.29.6'
-    springVersion = '6.2.15'
+    springVersion = '6.2.16'
     springSecurityVersion = '6.4.13'
     elasticSearchClientVersion = '7.17.29'
   }
@@ -517,7 +517,7 @@ subprojects {
         entry 'log4j-over-slf4j'
         entry 'slf4j-api'
       }
-      dependency 'org.postgresql:postgresql:42.7.9'
+      dependency 'org.postgresql:postgresql:42.7.10'
       dependency 'org.reflections:reflections:0.10.2'
       dependency 'org.simpleframework:simple:5.1.6'
       dependency 'org.sonarsource.git.blame:git-files-blame:1.1.0.1835'
