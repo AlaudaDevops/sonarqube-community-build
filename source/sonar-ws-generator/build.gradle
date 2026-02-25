@@ -1,0 +1,25 @@
+sonar {
+  skipProject = true
+}
+
+dependencies {
+  // please keep list ordered
+
+  api 'com.google.code.gson:gson'
+  api 'com.google.guava:guava'
+  api 'commons-io:commons-io'
+  api 'org.apache.velocity:velocity'
+  api 'org.slf4j:log4j-over-slf4j'
+  api 'org.sonarsource.orchestrator:sonar-orchestrator-junit4'
+
+  compileOnlyApi 'com.github.spotbugs:spotbugs-annotations'
+}
+
+task fatJar(type: Jar) {
+  manifest {
+    attributes 'Main-Class': 'org.sonarqube.wsgenerator.Generator'
+  }
+  archiveClassifier = 'jar-with-dependencies'
+  from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
+  with jar
+}

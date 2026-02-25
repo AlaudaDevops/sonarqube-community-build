@@ -1,0 +1,304 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "mybatis-3-mapper.dtd">
+
+<mapper namespace="org.sonar.db.ce.CeActivityMapper">
+
+
+  <!--assumes query includes an left left outer join on table ce_scanner_context with alias csc -->
+  <sql id="hasScannerContextColumn" databaseId="mssql">
+    cast(case when csc.task_uuid is null then 0 else 1 end as bit) as hasScannerContext
+  </sql>
+  <sql id="hasScannerContextColumn" databaseId="oracle">
+    case when csc.task_uuid is null then 0 else 1 end as hasScannerContext
+  </sql>
+  <sql id="hasScannerContextColumn">
+    csc.task_uuid is not null as hasScannerContext
+  </sql>
+
+  <sql id="ceActivityColumns">
+    ca.uuid,
+    ca.node_name as nodeName,
+    ca.task_type as taskType,
+    ca.component_uuid as componentUuid,
+    ca.entity_uuid as entityUuid,
+    ca.analysis_uuid as analysisUuid,
+    ca.status as status,
+    ca.submitter_uuid as submitterUuid,
+    ca.submitted_at as submittedAt,
+    ca.worker_uuid as workerUuid,
+    ca.started_at as startedAt,
+    ca.executed_at as executedAt,
+    ca.created_at as createdAt,
+    ca.updated_at as updatedAt,
+    ca.is_last as isLast,
+    ca.is_last_key as isLastKey,
+    ca.main_is_last as mainIsLast,
+    ca.main_is_last_key as mainIsLastKey,
+    ca.execution_time_ms as executionTimeMs,
+    ca.error_message as errorMessage,
+    ca.error_type as errorType,
+    ctm.uuid as ctm_uuid,
+    ctm.task_uuid as ctm_taskUuid,
+    ctm.message as ctm_message,
+    ctm.message_type as ctm_type,
+    ctm.created_at as ctm_createdAt
+  </sql>
+
+  <sql id="columns">
+    <include refid="ceActivityColumns"/>,
+    <include refid="hasScannerContextColumn"/>
+  </sql>
+
+  <sql id="fromClauseWithJoins">
+    from ce_activity ca
+    left outer join ce_task_message ctm on ca.uuid = ctm.task_uuid
+    left outer join ce_scanner_context csc on csc.task_uuid = ca.uuid
+  </sql>
+
+  <resultMap id="ceActivityResultMap" type="org.sonar.db.ce.CeActivityDto" autoMapping="true">
+    <id property="uuid" column="uuid"/>
+    <collection property="ceTaskMessageDtos" ofType="org.sonar.db.ce.CeTaskMessageDto" autoMapping="true" columnPrefix="ctm_">
+      <id property="uuid" column="uuid"/>
+      <result property="key" column="kee"/>
+    </collection>
+  </resultMap>
+
+  <select id="selectByUuid" parameterType="String" resultMap="ceActivityResultMap">
+    select
+      <include refid="columns"/>,
+      ca.error_stacktrace as errorStacktrace
+      <include refid="fromClauseWithJoins"/>
+    where
+      ca.uuid=#{uuid,jdbcType=VARCHAR}
+  </select>
+
+  <select id="selectByQuery" parameterType="map" resultMap="ceActivityResultMap">
+    select
+      <include refid="columns"/>
+      <include refid="fromClauseWithJoins"/>
+    where ca.uuid in (
+      <include refid="sqlSelectByQuery" />
+    )
+    order by ca.created_at desc, ca.uuid desc
+  </select>
+
+  <sql id="sqlSelectByQuery">
+    <include refid="sqlSelectByQueryWithoutPagination"/>
+    order by ca.created_at desc, uuid desc
+    <include refid="org.sonar.db.common.Common.pagination"/>
+  </sql>
+
+  <select id="countByQuery" parameterType="map" resultType="int">
+    select
+      count(1) from (
+        <include refid="sqlSelectByQueryWithoutPagination" />
+      ) allTaskUuids
+  </select>
+
+  <sql id="sqlSelectByQueryWithoutPagination">
+    select ca.uuid
+    from ce_activity ca
+    <where>
+      <if test="query.onlyCurrents">
+        and ca.main_is_last=${_true}
+      </if>
+      <if test="query.entityUuids != null and query.entityUuids.size()>0">
+        and ca.entity_uuid in
+        <foreach collection="query.entityUuids" open="(" close=")" item="cUuid" separator=",">
+          #{cUuid,jdbcType=VARCHAR}
+        </foreach>
+      </if>
+      <if test="query.statuses != null and !query.statuses.isEmpty()">
+        and ca.status in
+        <foreach collection="query.statuses" open="(" close=")" item="status" separator=",">
+          #{status,jdbcType=VARCHAR}
+        </foreach>
+      </if>
+      <if test="query.errorTypes != null and !query.errorTypes.isEmpty()">
+        and ca.error_type in
+        <foreach collection="query.errorTypes" open="(" close=")" item="errorType" separator=",">
+          #{errorType,jdbcType=VARCHAR}
+        </foreach>
+      </if>
+      <if test="query.type != null">
+        and ca.task_type=#{query.type,jdbcType=VARCHAR}
+      </if>
+      <if test="query.minSubmittedAt != null">
+        and ca.submitted_at &gt;= #{query.minSubmittedAt,jdbcType=BIGINT}
+      </if>
+      <if test="query.maxExecutedAt != null">
+        and ca.executed_at &lt;= #{query.maxExecutedAt,jdbcType=BIGINT}
+      </if>
+      <if test="query.minExecutedAt != null">
+        and ca.executed_at &gt;= #{query.minExecutedAt,jdbcType=BIGINT}
+      </if>
+    </where>
+  </sql>
+
+  <select id="selectOlderThan" parameterType="long" resultMap="ceActivityResultMap">
+    select
+      <include refid="columns"/>
+      <include refid="fromClauseWithJoins"/>
+    where
+      ca.created_at &lt; #{beforeDate,jdbcType=BIGINT}
+  </select>
+
+  <select id="selectNewerThan" parameterType="long" resultMap="ceActivityResultMap">
+    select
+      <include refid="columns"/>
+      <include refid="fromClauseWithJoins"/>
+    where
+      ca.created_at &gt; #{afterDate,jdbcType=BIGINT}
+  </select>
+
+  <select id="countLastByStatusAndEntityUuid" resultType="int">
+    select
+      count(1)
+    from
+      ce_activity
+    where
+      main_is_last=${_true}
+      and status=#{status,jdbcType=VARCHAR}
+      <if test="entityUuid!=null">
+        and entity_uuid=#{entityUuid,jdbcType=VARCHAR}
+      </if>
+  </select>
+
+  <insert id="insert" parameterType="org.sonar.db.ce.CeActivityDto" useGeneratedKeys="false">
+    insert into ce_activity (
+      uuid,
+      node_name,
+      component_uuid,
+      entity_uuid,
+      analysis_uuid,
+      status,
+      task_type,
+      is_last,
+      is_last_key,
+      main_is_last,
+      main_is_last_key,
+      submitter_uuid,
+      submitted_at,
+      worker_uuid,
+      execution_count,
+      started_at,
+      executed_at,
+      created_at,
+      updated_at,
+      execution_time_ms,
+      error_message,
+      error_stacktrace,
+      error_type
+    )
+    values (
+      #{uuid,jdbcType=VARCHAR},
+      #{nodeName,jdbcType=VARCHAR},
+      #{componentUuid,jdbcType=VARCHAR},
+      #{entityUuid,jdbcType=VARCHAR},
+      #{analysisUuid,jdbcType=VARCHAR},
+      #{status,jdbcType=VARCHAR},
+      #{taskType,jdbcType=VARCHAR},
+      #{isLast,jdbcType=BOOLEAN},
+      #{isLastKey,jdbcType=VARCHAR},
+      #{mainIsLast,jdbcType=BOOLEAN},
+      #{mainIsLastKey,jdbcType=VARCHAR},
+      #{submitterUuid,jdbcType=VARCHAR},
+      #{submittedAt,jdbcType=BIGINT},
+      #{workerUuid,jdbcType=VARCHAR},
+      0,
+      #{startedAt,jdbcType=BIGINT},
+      #{executedAt,jdbcType=BIGINT},
+      #{createdAt,jdbcType=BIGINT},
+      #{updatedAt,jdbcType=BIGINT},
+      #{executionTimeMs,jdbcType=BIGINT},
+      #{errorMessage,jdbcType=VARCHAR},
+      #{errorStacktrace,jdbcType=CLOB},
+      #{errorType,jdbcType=VARCHAR}
+    )
+  </insert>
+
+  <update id="clearIsLast" parameterType="map">
+    update ce_activity set
+      is_last=${_false},
+      updated_at=#{updatedAt,jdbcType=BIGINT}
+    where
+      is_last=${_true}
+      and is_last_key=#{isLastKey,jdbcType=VARCHAR}
+  </update>
+
+  <update id="clearMainIsLast" parameterType="map">
+    update ce_activity set
+      main_is_last=${_false},
+      updated_at=#{updatedAt,jdbcType=BIGINT}
+    where
+      main_is_last=${_true}
+      and main_is_last_key=#{mainIsLastKey,jdbcType=VARCHAR}
+  </update>
+
+  <delete id="deleteByUuids" parameterType="string">
+    delete
+      from ce_activity
+    where
+      uuid in
+      <foreach collection="uuids" open="(" close=")" item="uuid" separator=",">
+        #{uuid,jdbcType=VARCHAR}
+      </foreach>
+  </delete>
+
+  <select id="selectLastByComponentUuidAndTaskType" parameterType="map" resultMap="ceActivityResultMap">
+    select
+    <include refid="columns"/>
+    <include refid="fromClauseWithJoins"/>
+    where
+    ca.component_uuid = #{componentUuid,jdbcType=VARCHAR}
+    and ca.task_type = #{taskType,jdbcType=VARCHAR}
+    and ca.is_last = ${_true}
+  </select>
+
+  <select id="countFailedOrCancelledIssueSyncTasks" parameterType="map" resultType="int">
+    select
+      count(1)
+    from
+      ce_activity ca
+    inner join
+      project_branches pb
+    on
+      ca.component_uuid = pb.uuid
+    where
+      ca.task_type = 'ISSUE_SYNC'
+      and ca.status in ('FAILED', 'CANCELED')
+      and pb.need_issue_sync = ${_true}
+  </select>
+
+  <sql id="hasAnyFailedOrCancelledIssueSyncTaskSql">
+    select
+    case when exists
+    (
+    select ca.uuid from ce_activity ca inner join project_branches pb on ca.component_uuid = pb.uuid
+    where ca.task_type = 'ISSUE_SYNC'
+    and ca.status in ('FAILED', 'CANCELED')
+    and pb.need_issue_sync = ${_true}
+    )
+    then 1
+    else 0
+    end
+  </sql>
+
+  <select id="hasAnyFailedOrCancelledIssueSyncTask" parameterType="map" resultType="short" >
+    <include refid="hasAnyFailedOrCancelledIssueSyncTaskSql"/>
+  </select>
+
+  <select id="hasAnyFailedOrCancelledIssueSyncTask" parameterType="map" resultType="short" databaseId="oracle">
+    <include refid="hasAnyFailedOrCancelledIssueSyncTaskSql"/>
+    from dual
+  </select>
+
+  <select id="selectByTaskType" parameterType="map" resultMap="ceActivityResultMap">
+    select
+    <include refid="ceActivityColumns"/>
+    <include refid="fromClauseWithJoins"/>
+    where
+    ca.task_type = #{taskType,jdbcType=VARCHAR}
+  </select>
+
+</mapper>

@@ -1,0 +1,71 @@
+{
+  "canWrite": false,
+  "languages": {
+    "js": "JavaScript",
+    "java": "Java",
+    "php": "PHP"
+  },
+  "repositories": [
+    {
+      "key": "clirr",
+      "name": "Clirr",
+      "language": "java"
+    },
+    {
+      "key": "common-java",
+      "name": "Common SonarQube",
+      "language": "java"
+    },
+    {
+      "key": "common-js",
+      "name": "Common SonarQube",
+      "language": "js"
+    },
+    {
+      "key": "common-php",
+      "name": "Common SonarQube",
+      "language": "php"
+    },
+    {
+      "key": "javascript",
+      "name": "SonarQube",
+      "language": "js"
+    },
+    {
+      "key": "php",
+      "name": "SonarQube",
+      "language": "php"
+    },
+    {
+      "key": "squid",
+      "name": "SonarQube",
+      "language": "java"
+    }
+  ],
+  "statuses": {
+    "BETA": "Beta",
+    "DEPRECATED": "Deprecated",
+    "READY": "Ready"
+  },
+  "characteristics": [
+    {
+      "key": "REUSABILITY",
+      "name": "Reusability"
+    },
+    {
+      "key": "MODULARITY",
+      "name": "Modularity",
+      "parent": "REUSABILITY"
+    },
+    {
+      "key": "REUSABILITY_COMPLIANCE",
+      "name": "Reusability Compliance",
+      "parent": "REUSABILITY"
+    },
+    {
+      "key": "TRANSPORTABILITY",
+      "name": "Transportability",
+      "parent": "REUSABILITY"
+    }
+  ]
+}

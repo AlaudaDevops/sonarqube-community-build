@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "mybatis-3-mapper.dtd">
+
+<mapper namespace="org.sonar.db.jira.JiraOrganizationBindingMapper">
+
+  <sql id="sqlColumns">
+    jo.id as id,
+    jo.created_at as createdAt,
+    jo.updated_at as updatedAt,
+    jo.sonar_organization_uuid as sonarOrganizationUuid,
+    jo.jira_instance_url as jiraInstanceUrl,
+    jo.jira_cloud_id as jiraCloudId,
+    jo.jira_access_token as jiraAccessToken,
+    jo.jira_access_token_expires_at as jiraAccessTokenExpiresAt,
+    jo.jira_refresh_token as jiraRefreshToken,
+    jo.jira_refresh_token_created_at as jiraRefreshTokenCreatedAt,
+    jo.jira_refresh_token_updated_at as jiraRefreshTokenUpdatedAt,
+    jo.updated_by as updatedBy,
+    jo.is_token_shared as isTokenShared
+  </sql>
+
+  <select id="selectById" parameterType="string" resultType="org.sonar.db.jira.dto.JiraOrganizationBindingDto">
+    select <include refid="sqlColumns"/>
+    from
+      jira_org_bindings jo
+    where
+      jo.id = #{id, jdbcType=VARCHAR}
+  </select>
+
+  <select id="selectBySonarOrganizationUuid" parameterType="string" resultType="org.sonar.db.jira.dto.JiraOrganizationBindingDto">
+    select <include refid="sqlColumns"/>
+    from
+      jira_org_bindings jo
+    where
+      jo.sonar_organization_uuid = #{sonarOrganizationUuid, jdbcType=VARCHAR}
+  </select>
+
+  <insert id="insert" parameterType="Map" useGeneratedKeys="false">
+    INSERT INTO jira_org_bindings
+    (
+      id,
+      created_at,
+      updated_at,
+      sonar_organization_uuid,
+      jira_instance_url,
+      jira_cloud_id,
+      jira_access_token,
+      jira_access_token_expires_at,
+      jira_refresh_token,
+      jira_refresh_token_created_at,
+      jira_refresh_token_updated_at,
+      updated_by,
+      is_token_shared
+    )
+    VALUES (
+      #{dto.id, jdbcType=VARCHAR},
+      #{dto.createdAt, jdbcType=BIGINT},
+      #{dto.updatedAt, jdbcType=BIGINT},
+      #{dto.sonarOrganizationUuid, jdbcType=VARCHAR},
+      #{dto.jiraInstanceUrl, jdbcType=VARCHAR},
+      #{dto.jiraCloudId, jdbcType=VARCHAR},
+      #{dto.jiraAccessToken, jdbcType=VARCHAR},
+      #{dto.jiraAccessTokenExpiresAt, jdbcType=BIGINT},
+      #{dto.jiraRefreshToken, jdbcType=VARCHAR},
+      #{dto.jiraRefreshTokenCreatedAt, jdbcType=BIGINT},
+      #{dto.jiraRefreshTokenUpdatedAt, jdbcType=BIGINT},
+      #{dto.updatedBy, jdbcType=VARCHAR},
+      #{dto.isTokenShared, jdbcType=BOOLEAN}
+    )
+  </insert>
+
+  <update id="update" parameterType="map">
+    UPDATE jira_org_bindings
+    SET
+      updated_at = #{dto.updatedAt, jdbcType=BIGINT},
+      jira_instance_url = #{dto.jiraInstanceUrl, jdbcType=VARCHAR},
+      jira_cloud_id = #{dto.jiraCloudId, jdbcType=VARCHAR},
+      jira_access_token = #{dto.jiraAccessToken, jdbcType=VARCHAR},
+      jira_access_token_expires_at = #{dto.jiraAccessTokenExpiresAt, jdbcType=BIGINT},
+      jira_refresh_token = #{dto.jiraRefreshToken, jdbcType=VARCHAR},
+      jira_refresh_token_created_at = #{dto.jiraRefreshTokenCreatedAt, jdbcType=BIGINT},
+      jira_refresh_token_updated_at = #{dto.jiraRefreshTokenUpdatedAt, jdbcType=BIGINT},
+      updated_by = #{dto.updatedBy, jdbcType=VARCHAR},
+      is_token_shared = #{dto.isTokenShared, jdbcType=BOOLEAN}
+    WHERE
+      id = #{dto.id, jdbcType=VARCHAR}
+  </update>
+
+  <select id="countJiraRelatedDataBySonarOrganizationUuid" parameterType="String" resultType="int">
+    SELECT
+      (SELECT COUNT(*)
+       FROM jira_org_bindings ob
+       WHERE ob.sonar_organization_uuid = #{sonarOrganizationUuid, jdbcType=VARCHAR}) +
+      (SELECT COUNT(*)
+       FROM jira_project_bindings pb
+       INNER JOIN jira_org_bindings ob ON pb.jira_organization_binding_id = ob.id
+       WHERE ob.sonar_organization_uuid = #{sonarOrganizationUuid, jdbcType=VARCHAR}) +
+      (SELECT COUNT(*)
+       FROM jira_work_items wi
+       INNER JOIN jira_project_bindings pb ON wi.jira_project_binding_id = pb.id
+       INNER JOIN jira_org_bindings ob ON pb.jira_organization_binding_id = ob.id
+       WHERE ob.sonar_organization_uuid = #{sonarOrganizationUuid, jdbcType=VARCHAR}) +
+      (SELECT COUNT(*)
+       FROM jira_work_items_resources wir
+       INNER JOIN jira_work_items wi ON wir.jira_work_item_id = wi.id
+       INNER JOIN jira_project_bindings pb ON wi.jira_project_binding_id = pb.id
+       INNER JOIN jira_org_bindings ob ON pb.jira_organization_binding_id = ob.id
+       WHERE ob.sonar_organization_uuid = #{sonarOrganizationUuid, jdbcType=VARCHAR}) +
+      (SELECT COUNT(*)
+       FROM jira_selected_work_types swt
+       INNER JOIN jira_project_bindings pb ON swt.jira_project_binding_id = pb.id
+       INNER JOIN jira_org_bindings ob ON pb.jira_organization_binding_id = ob.id
+       WHERE ob.sonar_organization_uuid = #{sonarOrganizationUuid, jdbcType=VARCHAR})
+  </select>
+
+  <sql id="deleteBySonarOrganizationUuidQuery">
+    DELETE FROM jira_work_items_resources
+    WHERE jira_work_item_id IN (
+      SELECT wi.id
+      FROM jira_work_items wi
+      INNER JOIN jira_project_bindings pb ON wi.jira_project_binding_id = pb.id
+      INNER JOIN jira_org_bindings ob ON pb.jira_organization_binding_id = ob.id
+      WHERE ob.sonar_organization_uuid = #{sonarOrganizationUuid, jdbcType=VARCHAR}
+    );
+    DELETE FROM jira_work_items
+    WHERE jira_project_binding_id IN (
+      SELECT pb.id
+      FROM jira_project_bindings pb
+      INNER JOIN jira_org_bindings ob ON pb.jira_organization_binding_id = ob.id
+      WHERE ob.sonar_organization_uuid = #{sonarOrganizationUuid, jdbcType=VARCHAR}
+    );
+    DELETE FROM jira_selected_work_types
+    WHERE jira_project_binding_id IN (
+      SELECT pb.id
+      FROM jira_project_bindings pb
+      INNER JOIN jira_org_bindings ob ON pb.jira_organization_binding_id = ob.id
+      WHERE ob.sonar_organization_uuid = #{sonarOrganizationUuid, jdbcType=VARCHAR}
+    );
+    DELETE FROM jira_project_bindings
+    WHERE jira_organization_binding_id IN (
+      SELECT ob.id
+      FROM jira_org_bindings ob
+      WHERE ob.sonar_organization_uuid = #{sonarOrganizationUuid, jdbcType=VARCHAR}
+    );
+    DELETE FROM jira_org_bindings
+    WHERE sonar_organization_uuid = #{sonarOrganizationUuid, jdbcType=VARCHAR};
+  </sql>
+
+  <delete id="deleteBySonarOrganizationUuid" parameterType="String">
+    <include refid="deleteBySonarOrganizationUuidQuery"/>
+  </delete>
+
+  <delete id="deleteBySonarOrganizationUuid" parameterType="String" databaseId="oracle">
+    BEGIN
+    <include refid="deleteBySonarOrganizationUuidQuery"/>
+    END;
+  </delete>
+
+  <select id="countAll" resultType="int">
+    SELECT COUNT(*)
+    FROM jira_org_bindings
+  </select>
+
+</mapper>

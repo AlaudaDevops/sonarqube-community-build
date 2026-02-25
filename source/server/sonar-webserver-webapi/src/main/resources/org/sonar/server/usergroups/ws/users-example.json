@@ -1,0 +1,21 @@
+{
+  "users": [
+    {
+      "login": "admin",
+      "name": "Administrator",
+      "selected": true,
+      "managed": false
+    },
+    {
+      "login": "george.orwell",
+      "name": "George Orwell",
+      "selected": true,
+      "managed": true
+    }
+  ],
+  "paging": {
+    "pageIndex": 1,
+    "pageSize": 25,
+    "total": 2
+  }
+}

@@ -1,0 +1,56 @@
+/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource Sàrl
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.v2.api.azurebilling.controller;
+
+import com.google.common.annotations.VisibleForTesting;
+import org.sonar.server.user.UserSession;
+import org.sonar.server.v2.api.azurebilling.environment.AzureEnvironment;
+import org.sonar.server.v2.api.azurebilling.response.AzureBillingRestResponse;
+import org.sonar.server.v2.api.azurebilling.service.AzureBillingHandler;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+
+public class DefaultAzureBillingController implements AzureBillingController {
+
+  private final AzureBillingHandler azureBillingHandler;
+  private final UserSession userSession;
+  private final AzureEnvironment azureEnvironment;
+
+  @Autowired
+  public DefaultAzureBillingController(AzureBillingHandler azureBillingHandler, UserSession userSession) {
+    this(azureBillingHandler, userSession, new AzureEnvironment());
+  }
+
+  @VisibleForTesting
+  DefaultAzureBillingController(AzureBillingHandler azureBillingHandler, UserSession userSession, AzureEnvironment azureEnvironment) {
+    this.azureBillingHandler = azureBillingHandler;
+    this.userSession = userSession;
+    this.azureEnvironment = azureEnvironment;
+  }
+
+  @Override
+  public ResponseEntity<AzureBillingRestResponse> billAzureAccount() {
+    userSession.checkIsSystemAdministrator();
+    if (!azureEnvironment.isAzureBillingEnabled()) {
+      throw new IllegalStateException("Azure billing is not enabled on this instance");
+    }
+    return azureBillingHandler.billAzureAccount();
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "issues": [
+    {
+      "assignee": "simon",
+      "actions": [
+        "comment",
+        "assign",
+        "set_tags"
+      ],
+      "transitions": [
+        "confirm"
+      ]
+    }
+  ],
+  "users": [
+    {
+      "login": "simon",
+      "name": "Simon",
+      "avatar": "ab0ec6adc38ad44a15105f207394946f",
+      "active": true
+    }
+  ]
+}

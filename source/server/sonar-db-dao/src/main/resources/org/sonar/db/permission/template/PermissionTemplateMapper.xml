@@ -1,0 +1,382 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "mybatis-3-mapper.dtd">
+
+<mapper namespace="org.sonar.db.permission.template.PermissionTemplateMapper">
+
+  <insert id="insert" parameterType="PermissionTemplate" useGeneratedKeys="false">
+    INSERT INTO permission_templates (name, uuid, description, key_pattern, created_at, updated_at)
+    VALUES (
+    #{name,jdbcType=VARCHAR},
+    #{uuid,jdbcType=VARCHAR},
+    #{description,jdbcType=VARCHAR},
+    #{keyPattern,jdbcType=VARCHAR},
+    #{createdAt},
+    #{updatedAt})
+  </insert>
+
+  <update id="update" parameterType="PermissionTemplate">
+    UPDATE permission_templates
+    SET name = #{name}, description = #{description}, key_pattern = #{keyPattern}, updated_at = #{updatedAt}
+    WHERE uuid = #{uuid}
+  </update>
+
+  <delete id="deleteByUuid" parameterType="String">
+    DELETE FROM permission_templates
+    WHERE uuid = #{uuid}
+  </delete>
+
+  <delete id="deleteUserPermissionsByTemplateUuid" parameterType="string">
+    delete from
+      perm_templates_users
+    where
+      template_uuid = #{templateUuid,jdbcType=VARCHAR}
+  </delete>
+
+  <delete id="deleteUserPermission" parameterType="PermissionTemplateUser">
+    DELETE FROM perm_templates_users
+    WHERE template_uuid = #{templateUuid}
+    AND user_uuid = #{userUuid}
+    AND permission_reference = #{permission}
+  </delete>
+
+  <delete id="deleteUserPermissionsByUserUuid" parameterType="String">
+    delete from perm_templates_users
+    where
+    user_uuid = #{userUuid,jdbcType=VARCHAR}
+  </delete>
+
+  <delete id="deleteGroupPermissionsByTemplateUuid" parameterType="String">
+    delete from
+      perm_templates_groups
+    where
+      template_uuid = #{templateUuid,jdbcType=VARCHAR}
+  </delete>
+
+  <delete id="deleteGroupPermission" parameterType="PermissionTemplateGroup">
+    DELETE FROM perm_templates_groups
+    WHERE template_uuid = #{templateUuid}
+    AND permission_reference = #{permission}
+    AND
+    <choose>
+      <when test="groupUuid != null">
+        group_uuid = #{groupUuid}
+      </when>
+      <otherwise>
+        group_uuid IS NULL
+      </otherwise>
+    </choose>
+  </delete>
+
+  <insert id="insertUserPermission" parameterType="PermissionTemplateUser">
+    INSERT INTO perm_templates_users (uuid, template_uuid, user_uuid, permission_reference, created_at, updated_at)
+    VALUES (#{uuid}, #{templateUuid}, #{userUuid}, #{permission}, #{createdAt}, #{updatedAt})
+  </insert>
+
+  <insert id="insertGroupPermission" parameterType="PermissionTemplateGroup">
+    INSERT INTO perm_templates_groups (uuid, template_uuid, group_uuid, permission_reference, created_at, updated_at)
+    VALUES (
+    #{uuid,jdbcType=VARCHAR},
+    #{templateUuid,jdbcType=VARCHAR},
+    #{groupUuid,jdbcType=VARCHAR},
+    #{permission,jdbcType=VARCHAR},
+    #{createdAt,jdbcType=TIMESTAMP},
+    #{updatedAt,jdbcType=TIMESTAMP}
+    )
+  </insert>
+
+  <delete id="deleteByGroupUuid" parameterType="string">
+    delete from perm_templates_groups
+    where group_uuid = #{groupUuid,jdbcType=VARCHAR}
+  </delete>
+
+  <select id="selectUserLoginsByQueryAndTemplate" resultType="string">
+    select u.login as login
+      <include refid="userLoginsByQueryAndTemplate"/>
+    group by u.login, u.name
+    order by case when (count(ptu.permission_reference) > 0) then 1 else 2 end asc, u.name
+    <include refid="org.sonar.db.common.Common.pagination"/>
+  </select>
+
+  <select id="countUserLoginsByQueryAndTemplate" parameterType="map" resultType="int">
+    SELECT count(1)
+      FROM (
+      SELECT DISTINCT u.login AS login, u.name AS name
+      <include refid="userLoginsByQueryAndTemplate"/>) u
+  </select>
+
+  <sql id="userLoginsByQueryAndTemplate">
+    FROM users u
+    LEFT JOIN perm_templates_users ptu ON ptu.user_uuid=u.uuid AND ptu.template_uuid=#{templateUuid}
+    <where>
+      u.active = ${_true}
+      <if test="query.getSearchQueryToSql() != null">
+        AND (lower(u.name) like #{query.searchQueryToSqlLowercase} ESCAPE '/'
+        OR lower(u.login) like #{query.searchQueryToSqlLowercase} ESCAPE '/'
+        OR lower(u.email) like #{query.searchQueryToSqlLowercase} ESCAPE '/')
+      </if>
+      <if test="query.withAtLeastOnePermission()">
+        and ptu.permission_reference is not null
+        <if test="query.getPermission()!=null">
+          and ptu.permission_reference=#{query.permission}
+        </if>
+      </if>
+    </where>
+  </sql>
+
+  <select id="selectGroupNamesByQueryAndTemplate" resultType="string">
+    select groups.name, lower(groups.name), groups.group_uuid
+    <include refid="groupNamesByQueryAndTemplate"/>
+    group by groups.name, lower(groups.name), groups.group_uuid
+    order by case when (count(groups.permission) > 0) then 1 else 2 end asc, lower(groups.name), groups.name, groups.group_uuid
+    <include refid="org.sonar.db.common.Common.pagination"/>
+  </select>
+
+  <select id="countGroupNamesByQueryAndTemplate" parameterType="map" resultType="int">
+    SELECT COUNT(1)
+    FROM (
+      SELECT DISTINCT group_uuid
+      <include refid="groupNamesByQueryAndTemplate"/>) g
+  </select>
+
+  <sql id="groupNamesByQueryAndTemplate">
+    FROM
+    (SELECT
+      g.uuid AS group_uuid,
+      g.name AS name,
+      ptg.permission_reference AS permission,
+      ptg.template_uuid AS templateUuid
+    FROM groups g
+    LEFT JOIN perm_templates_groups ptg ON
+        ptg.group_uuid=g.uuid
+      AND ptg.template_uuid=#{templateUuid}
+    UNION ALL
+    SELECT
+      'Anyone' AS group_uuid,
+      'Anyone' AS name,
+      ptg.permission_reference AS permission,
+      ptg.template_uuid AS templateUuid
+    FROM groups g
+    LEFT JOIN perm_templates_groups ptg ON
+      ptg.template_uuid=#{templateUuid}
+          <if test="query.withAtLeastOnePermission()">
+    <where>
+      ptg.group_uuid IS NULL
+    </where>
+          </if>
+    ) groups
+    <where>
+      <if test="query.searchQueryToSql != null">
+        AND LOWER(groups.name) LIKE #{query.searchQueryToSqlLowercase} ESCAPE '/'
+      </if>
+      <if test="query.withAtLeastOnePermission()">
+        AND groups.permission IS NOT NULL
+        AND groups.templateUuid=#{templateUuid}
+        <if test="query.permission != null">
+          AND groups.permission=#{query.permission}
+        </if>
+      </if>
+    </where>
+  </sql>
+
+  <sql id="templateColumns">
+    name, uuid, description, key_pattern AS keyPattern, created_at AS createdAt, updated_at AS updatedAt
+  </sql>
+
+  <select id="selectByUuid" parameterType="String" resultType="PermissionTemplate">
+    SELECT
+    <include refid="templateColumns"/>
+    FROM permission_templates
+    WHERE uuid=#{uuid}
+  </select>
+
+  <select id="selectAll" parameterType="map" resultType="PermissionTemplate">
+    select
+    <include refid="templateColumns"/>
+    from permission_templates
+    <if test="upperCaseNameLikeSql != null">
+        where upper(name) like #{upperCaseNameLikeSql} escape '/'
+    </if>
+    order by upper(name), name
+  </select>
+
+  <select id="selectByName" parameterType="map" resultType="PermissionTemplate">
+    select
+    <include refid="templateColumns"/>
+    from permission_templates
+    where
+    upper(name) = #{name,jdbcType=VARCHAR}
+  </select>
+
+  <sql id="permissionTemplateUserColumns">
+    ptu.uuid,
+    ptu.template_uuid as templateUuid,
+    ptu.permission_reference AS permission,
+    ptu.user_uuid AS userUuid,
+    u.name AS userName,
+    u.login AS userLogin,
+    ptu.created_at AS createdAt,
+    ptu.updated_at AS updatedAt
+  </sql>
+
+  <select id="selectUserPermissionsByTemplateUuidAndUserLogins" parameterType="String" resultType="PermissionTemplateUser">
+    SELECT
+    <include refid="permissionTemplateUserColumns"/>
+    FROM perm_templates_users ptu
+    INNER JOIN users u ON u.uuid = ptu.user_uuid AND u.active = ${_true}
+    <where>
+      AND ptu.template_uuid = #{templateUuid}
+      <if test="!logins.isEmpty()">
+        AND u.login IN <foreach collection="logins" open="(" close=")" item="login" separator=",">
+          #{login}
+        </foreach>
+      </if>
+    </where>
+  </select>
+
+  <select id="selectGroupPermissionsByTemplateUuidAndGroupNames" parameterType="String" resultType="PermissionTemplateGroup">
+    SELECT
+      sub.uuid,
+      sub.templateUuid,
+      sub.permission,
+      sub.groupUuid,
+      sub.groupName,
+      sub.createdAt,
+      sub.updatedAt
+    FROM  (
+      SELECT
+        ptg.uuid,
+        ptg.template_uuid as templateUuid,
+        ptg.permission_reference AS permission,
+        ptg.group_uuid AS groupUuid,
+        g.name AS groupName,
+        ptg.created_at as createdAt,
+        ptg.updated_at as updatedAt
+      FROM perm_templates_groups ptg
+      INNER JOIN groups g ON
+        g.uuid=ptg.group_uuid
+      UNION ALL
+        SELECT
+          ptg.uuid,
+          ptg.template_uuid as templateUuid,
+          ptg.permission_reference AS permission,
+          'Anyone' AS groupUuid,
+          'Anyone' AS groupName,
+          ptg.created_at as createdAt,
+          ptg.updated_at as updatedAt
+        FROM perm_templates_groups ptg
+        WHERE ptg.group_uuid IS NULL
+    ) sub
+    <where>
+      sub.templateUuid=#{templateUuid}
+      <if test="!groups.isEmpty()">
+        AND sub.groupName IN <foreach collection="groups" open="(" close=")" item="group" separator=",">
+        #{group,jdbcType=VARCHAR}
+        </foreach>
+      </if>
+    </where>
+  </select>
+
+  <select id="selectPotentialPermissionsByUserUuidAndTemplateUuid" parameterType="map" resultType="String">
+    <if test="userUuid!=null">
+      -- from template users
+      select ptu.permission_reference as permission_key
+      from perm_templates_users ptu
+      <where>
+        and ptu.user_uuid=#{userUuid}
+        and ptu.template_uuid=#{templateUuid}
+      </where>
+      UNION
+      -- from template groups except anyone group
+      select ptg.permission_reference as permission_key
+      from perm_templates_groups ptg
+      inner join groups_users gu on ptg.group_uuid = gu.group_uuid
+      <where>
+        and gu.user_uuid=#{userUuid}
+        and ptg.template_uuid=#{templateUuid}
+      </where>
+      UNION
+      -- from template characteristics
+      select ptc.permission_key as permission_key
+      from perm_tpl_characteristics ptc
+      <where>
+        and with_project_creator = ${_true}
+        and ptc.template_uuid = #{templateUuid}
+      </where>
+      UNION
+    </if>
+    -- from anyone group
+    select ptg.permission_reference as permission_key
+    from perm_templates_groups ptg
+    where ptg.template_uuid=#{templateUuid}
+    and ptg.group_uuid IS NULL
+  </select>
+
+  <select id="usersCountByTemplateUuidAndPermission" parameterType="map"
+          resultType="org.sonar.db.permission.template.CountByTemplateAndPermissionDto">
+    SELECT ptu.template_uuid as templateUuid, ptu.permission_reference as permission, count(u.login) as count
+    FROM users u
+    INNER JOIN perm_templates_users ptu ON ptu.user_uuid=u.uuid
+    AND ptu.template_uuid in
+    <foreach collection="templateUuids" open="(" close=")" item="id" separator=",">
+      #{id}
+    </foreach>
+    <where>
+      AND u.active = ${_true}
+    </where>
+    GROUP BY ptu.template_uuid, ptu.permission_reference
+  </select>
+
+  <select id="groupsCountByTemplateUuidAndPermission" parameterType="map"
+          resultType="org.sonar.db.permission.template.CountByTemplateAndPermissionDto">
+    SELECT count(1) as count, permission, templateUuid
+    FROM
+    (SELECT g.name as name, ptg.permission_reference as permission, ptg.template_uuid as templateUuid
+    FROM groups g
+    INNER JOIN perm_templates_groups ptg ON ptg.group_uuid=g.uuid
+    UNION
+    -- Add Anyone group permission
+    SELECT #{anyoneGroup} as name, ptg.permission_reference as permission, ptg.template_uuid as templateUuid
+    FROM perm_templates_groups ptg
+    <where>
+      AND ptg.group_uuid IS NULL
+    </where>
+    ) groups
+    <where>
+      AND groups.templateUuid in
+      <foreach collection="templateUuids" open="(" close=")" item="id" separator=",">
+        #{id}
+      </foreach>
+    </where>
+    GROUP BY groups.permission, groups.templateUuid
+  </select>
+
+  <select id="countGroupsWithPermission" resultType="int" parameterType="map">
+    select count(1)
+    from perm_templates_groups ptg
+    where ptg.template_uuid = #{templateUuid}
+    and ptg.permission_reference = #{permission}
+    and
+    <if test="groupUuid == null">
+      ptg.group_uuid is null
+    </if>
+    <if test="groupUuid != null">
+      ptg.group_uuid = #{groupUuid}
+    </if>
+  </select>
+
+  <select id="selectAllGroupPermissionTemplatesByGroupUuid" parameterType="string" resultType="PermissionTemplateGroup">
+    SELECT
+      ptg.uuid,
+      ptg.template_uuid as templateUuid,
+      ptg.permission_reference AS permission,
+      ptg.group_uuid AS groupUuid,
+      g.name AS groupName,
+      ptg.created_at as createdAt,
+      ptg.updated_at as updatedAt
+    FROM perm_templates_groups ptg
+    INNER JOIN groups g ON g.uuid=ptg.group_uuid
+    <where>
+      ptg.group_uuid=#{groupUuid,jdbcType=VARCHAR}
+    </where>
+  </select>
+</mapper>

@@ -1,0 +1,9 @@
+{
+  "user": {
+    "login": "john",
+    "name": "Jon Snow",
+    "email": "jon.snow@thegreatw.all",
+    "active": true,
+    "local": true
+  }
+}

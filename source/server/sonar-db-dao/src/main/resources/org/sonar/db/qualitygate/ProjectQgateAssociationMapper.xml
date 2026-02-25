@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "mybatis-3-mapper.dtd">
+
+<mapper namespace="org.sonar.db.qualitygate.ProjectQgateAssociationMapper">
+
+<select id="selectProjects" parameterType="map" resultType="ProjectQgateAssociation">
+    SELECT proj.uuid as uuid, proj.kee as "key", proj.name as name, qg.uuid as gateUuid, proj.contains_ai_code as containsAiCode, qg.ai_code_supported as aiCodeSupportedByQg
+    FROM projects proj
+    LEFT JOIN project_qgates prqg ON prqg.project_uuid=proj.uuid AND prqg.quality_gate_uuid = #{query.gateUuid, jdbcType=VARCHAR}
+    LEFT JOIN quality_gates qg ON qg.uuid = prqg.quality_gate_uuid
+    where
+    proj.qualifier = 'TRK'
+    <choose>
+      <when test="query.membership() == 'selected'">
+        and qg.uuid IS NOT NULL
+      </when>
+      <when test="query.membership() == 'deselected'">
+        and qg.uuid IS NULL
+      </when>
+    </choose>
+    <if test="query.projectSearch() != null">
+      and (proj.kee = #{query.projectSearch} or upper(proj.name) like #{query.projectSearchUpperLikeSql} escape '/')
+    </if>
+    order by proj.name, proj.kee
+  </select>
+
+  <select id="selectAll" resultType="ProjectQgateAssociation">
+    SELECT project_uuid as uuid, quality_gate_uuid as gateUuid
+    FROM project_qgates
+  </select>
+
+  <select id="selectQGateUuidByProjectUuid" parameterType="String" resultType="string">
+    SELECT quality_gate_uuid
+    FROM project_qgates
+    <where>
+      AND project_uuid=#{projectUuid}
+    </where>
+  </select>
+
+  <delete id="deleteByProjectUuid" parameterType="String">
+    DELETE
+    FROM project_qgates
+    WHERE
+    project_uuid=#{uuid,jdbcType=VARCHAR}
+  </delete>
+
+  <delete id="deleteByQGateUuid" parameterType="String">
+    DELETE
+    FROM project_qgates
+    WHERE
+    quality_gate_uuid=#{uuid,jdbcType=VARCHAR}
+  </delete>
+
+  <insert id="insertProjectQGateAssociation" parameterType="map">
+    INSERT into project_qgates
+    (
+    project_uuid,
+    quality_gate_uuid
+    )
+    VALUES (
+    #{projectUuid,jdbcType=VARCHAR},
+    #{qGateUuid,jdbcType=VARCHAR}
+    )
+  </insert>
+
+  <update id="updateProjectQGateAssociation" parameterType="map">
+    UPDATE project_qgates
+    SET
+    quality_gate_uuid=#{qGateUuid,jdbcType=VARCHAR}
+    WHERE
+    project_uuid = #{projectUuid,jdbcType=VARCHAR}
+  </update>
+
+</mapper>

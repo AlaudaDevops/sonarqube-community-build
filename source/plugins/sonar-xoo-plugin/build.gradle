@@ -1,0 +1,63 @@
+
+dependencies {
+  api 'com.google.guava:guava'
+  api 'commons-io:commons-io'
+  api 'org.apache.commons:commons-lang3'
+  api 'org.apache.commons:commons-csv'
+
+  compileOnlyApi 'com.github.spotbugs:spotbugs-annotations'
+  compileOnlyApi 'org.sonarsource.api.plugin:sonar-plugin-api'
+
+  testImplementation 'junit:junit'
+  testImplementation 'org.assertj:assertj-core'
+  testImplementation 'org.junit.jupiter:junit-jupiter-api'
+  testImplementation 'org.mockito:mockito-core'
+  testImplementation 'org.sonarsource.api.plugin:sonar-plugin-api-test-fixtures'
+  testImplementation project(':sonar-plugin-api-impl')
+
+  testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+  testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+  testRuntimeOnly 'org.junit.vintage:junit-vintage-engine'
+}
+
+jar {
+  manifest {
+    attributes(
+      'Plugin-Key': 'xoo',
+      'Plugin-Organization': 'SonarSource',
+      'Plugin-Version': project.version,
+      'Plugin-Class': 'org.sonar.xoo.XooPlugin',
+      'Plugin-ChildFirstClassLoader': 'false',
+      'Sonar-Version': project.pluginApiVersion,
+      'SonarLint-Supported': 'true',
+      'Plugin-Name': 'Xoo'
+    )
+  }
+  into('META-INF/lib') {
+    from configurations.runtimeClasspath
+  }
+}
+
+// Produce Java 17 bytecode while making sure the code does not use any APIs from Java 21
+tasks.withType(JavaCompile).configureEach {
+  options.release = 17
+}
+
+artifactoryPublish.skip = !deployCommunity
+
+publishing {
+  publications {
+    mavenJava(MavenPublication) {
+      from components.java
+      if (release) {
+        artifact sourcesJar
+        artifact javadocJar
+      }
+    }
+  }
+}
+
+test {
+  // Enabling the JUnit Platform (see https://github.com/junit-team/junit5-samples/tree/master/junit5-migration-gradle)
+  useJUnitPlatform()
+}

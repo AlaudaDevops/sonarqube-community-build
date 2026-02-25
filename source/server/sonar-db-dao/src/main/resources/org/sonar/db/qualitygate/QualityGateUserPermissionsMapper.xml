@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "mybatis-3-mapper.dtd">
+
+<mapper namespace="org.sonar.db.qualitygate.QualityGateUserPermissionsMapper">
+
+  <sql id="sqlColumns">
+    qup.uuid as "uuid",
+    qup.user_uuid as "userUuid",
+    qup.quality_gate_uuid as "qualityGateUuid"
+  </sql>
+
+  <select id="selectByQualityGateAndUser" parameterType="String" resultType="org.sonar.db.qualitygate.QualityGateUserPermissionsDto">
+    select
+    <include refid="sqlColumns"/>
+    from qgate_user_permissions qup
+    where
+    qup.user_uuid = #{userUuid}
+    and qup.quality_gate_uuid = #{qualityGateUuid}
+  </select>
+
+  <insert id="insert" useGeneratedKeys="false" parameterType="map">
+    insert into qgate_user_permissions(
+    uuid,
+    user_uuid,
+    quality_gate_uuid,
+    created_at
+    ) values (
+    #{dto.uuid, jdbcType=VARCHAR},
+    #{dto.userUuid, jdbcType=VARCHAR},
+    #{dto.qualityGateUuid, jdbcType=VARCHAR},
+    #{now, jdbcType=BIGINT}
+    )
+  </insert>
+
+  <select id="countByQuery" resultType="int">
+    select count(u.uuid)
+    <include refid="sqlSelectByQuery"/>
+  </select>
+
+  <select id="selectByQuery" parameterType="map" resultType="org.sonar.db.user.SearchUserMembershipDto">
+    SELECT u.uuid as userUuid, u.name as name, qup.uuid as uuid
+    <include refid="sqlSelectByQuery"/>
+    ORDER BY u.name ASC
+    <include refid="org.sonar.db.common.Common.pagination"/>
+  </select>
+
+  <sql id="sqlSelectByQuery">
+    FROM users u
+    LEFT JOIN qgate_user_permissions qup ON qup.user_uuid=u.uuid AND
+    qup.quality_gate_uuid=#{query.qualityGateUuid, jdbcType=VARCHAR}
+    <where>
+      <choose>
+        <when test="query.getMembership() == 'IN'">
+          AND qup.uuid IS NOT NULL
+        </when>
+        <when test="query.getMembership() == 'OUT'">
+          AND qup.uuid IS NULL
+        </when>
+      </choose>
+      <if test="query.getQuery() != null">
+        AND (
+        lower(u.name) like #{query.querySqlLowercase} ESCAPE '/'
+        or u.login like #{query.querySql} ESCAPE '/')
+      </if>
+      AND u.active=${_true}
+    </where>
+  </sql>
+
+  <delete id="delete">
+    delete from qgate_user_permissions
+    where quality_gate_uuid = #{qualityGateUuid}
+    and user_uuid = #{userUuid}
+  </delete>
+
+  <delete id="deleteByUser">
+    delete from qgate_user_permissions
+    where user_uuid = #{userUuid}
+  </delete>
+
+  <delete id="deleteByQualityGate">
+    delete from qgate_user_permissions
+    where quality_gate_uuid = #{qualityGateUuid, jdbcType=VARCHAR}
+  </delete>
+
+</mapper>
+

@@ -1,0 +1,405 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "mybatis-3-mapper.dtd">
+
+<mapper namespace="org.sonar.db.permission.AuthorizationMapper">
+
+  <select id="selectGlobalPermissions" parameterType="map" resultType="string">
+    select gr.role
+    from group_roles gr
+    inner join groups_users gu on gr.group_uuid=gu.group_uuid
+    where
+    gr.entity_uuid is null and
+    gu.user_uuid=#{userUuid, jdbcType=VARCHAR}
+
+    union
+
+    select gr.role
+    from group_roles gr
+    where
+    gr.group_uuid is null and
+    gr.entity_uuid is null
+
+    union
+
+    select ur.role
+    from user_roles ur
+    where
+    ur.user_uuid=#{userUuid, jdbcType=VARCHAR}
+    and ur.entity_uuid is null
+  </select>
+
+    <select id="selectGlobalPermissionsOfAnonymous" parameterType="map" resultType="string">
+    select gr.role
+    from group_roles gr
+    where
+    gr.entity_uuid is null and
+    gr.group_uuid is null
+  </select>
+
+  <select id="countUsersWithGlobalPermissionExcludingGroup" parameterType="map" resultType="int">
+    select count(1) from
+    (
+      select gu.user_uuid
+      from groups_users gu
+      inner join group_roles gr on gr.group_uuid = gu.group_uuid
+      where
+      gr.role = #{permission, jdbcType=VARCHAR} and
+      gr.entity_uuid is null and
+      gr.group_uuid is not null and
+      gr.group_uuid != #{excludedGroupUuid, jdbcType=VARCHAR}
+
+      union
+
+      select ur.user_uuid
+      from user_roles ur
+      where
+      ur.entity_uuid is null and
+      ur.role = #{permission, jdbcType=VARCHAR}
+    ) remaining
+  </select>
+
+  <select id="countUsersWithGlobalPermissionExcludingUser" parameterType="map" resultType="int">
+    select count(1) from
+    (
+    select gu.user_uuid
+    from groups_users gu
+    inner join group_roles gr on gr.group_uuid = gu.group_uuid
+    where
+    gr.role = #{permission, jdbcType=VARCHAR} and
+    gr.entity_uuid is null and
+    gr.group_uuid is not null and
+    gu.user_uuid != #{excludedUserUuid, jdbcType=VARCHAR}
+
+    union
+
+    select ur.user_uuid
+    from user_roles ur
+    where
+    ur.entity_uuid is null and
+    ur.role = #{permission, jdbcType=VARCHAR} and
+    ur.user_uuid != #{excludedUserUuid, jdbcType=VARCHAR}
+    ) remaining
+  </select>
+
+  <select id="selectUserUuidsWithGlobalPermission" parameterType="map" resultType="String">
+    select gu.user_uuid
+    from groups_users gu
+    inner join group_roles gr on gr.group_uuid = gu.group_uuid
+    where
+    gr.role = #{permission, jdbcType=VARCHAR} and
+    gr.entity_uuid is null and
+    gr.group_uuid is not null
+
+    union
+
+    select ur.user_uuid
+    from user_roles ur
+    where
+    ur.entity_uuid is null and
+    ur.role = #{permission, jdbcType=VARCHAR}
+  </select>
+
+  <select id="countUsersWithGlobalPermissionExcludingGroupMember" parameterType="map" resultType="int">
+    select count(1) from
+    (
+    select gu.user_uuid
+    from groups_users gu
+    inner join group_roles gr on gr.group_uuid = gu.group_uuid
+    where
+    gr.role = #{permission, jdbcType=VARCHAR} and
+    gr.entity_uuid is null and
+    gr.group_uuid is not null and
+    (gu.group_uuid != #{groupUuid, jdbcType=VARCHAR} or gu.user_uuid != #{userUuid, jdbcType=VARCHAR})
+
+    union
+
+    select ur.user_uuid
+    from user_roles ur
+    where
+    ur.entity_uuid is null and
+    ur.role = #{permission, jdbcType=VARCHAR}
+    ) remaining
+  </select>
+
+  <select id="countUsersWithGlobalPermissionExcludingUserPermission" parameterType="map" resultType="int">
+    select count(1) from
+    (
+    select gu.user_uuid
+    from groups_users gu
+    inner join group_roles gr on gr.group_uuid = gu.group_uuid
+    where
+    gr.role = #{permission, jdbcType=VARCHAR} and
+    gr.entity_uuid is null and
+    gr.group_uuid is not null
+
+    union
+
+    select ur.user_uuid
+    from user_roles ur
+    where
+    ur.entity_uuid is null and
+    ur.role = #{permission, jdbcType=VARCHAR} and
+    ur.user_uuid != #{userUuid, jdbcType=VARCHAR}
+    ) remaining
+  </select>
+
+  <select id="keepAuthorizedEntityUuidsForUser" parameterType="map" resultType="String">
+    select
+      gr.entity_uuid
+    from
+      group_roles gr
+    where
+      gr.role=#{role, jdbcType=VARCHAR}
+      and (
+        gr.group_uuid is null
+        or exists (
+          select
+            1
+          from
+            groups_users gu
+          where
+            gu.user_uuid = #{userUuid, jdbcType=VARCHAR}
+            and gr.group_uuid = gu.group_uuid
+        )
+      )
+      and gr.entity_uuid in
+      <foreach collection="entityUuids" open="(" close=")" item="element" index="index" separator=",">
+        #{element, jdbcType=VARCHAR}
+      </foreach>
+
+    union
+
+    select
+      entity.uuid
+    from
+      user_roles ur
+    inner join (<include refid="org.sonar.db.entity.EntityMapper.selectAll"/>) entity on
+      entity.uuid = ur.entity_uuid
+    where
+      ur.role=#{role, jdbcType=VARCHAR}
+      and ur.user_uuid=#{userUuid, jdbcType=INTEGER}
+      and entity.uuid in
+      <foreach collection="entityUuids" open="(" close=")" item="element" index="index" separator=",">
+        #{element, jdbcType=VARCHAR}
+      </foreach>
+
+    union
+
+    <include refid="sqlSelectPublicEntitiesIfRole"/>
+  </select>
+
+  <sql id="sqlSelectPublicEntitiesIfRole">
+    select
+    entity.uuid
+    from
+    (<include refid="org.sonar.db.entity.EntityMapper.selectAll"/>) entity
+    where entity.uuid in
+    <foreach collection="entityUuids" open="(" close=")" item="element" index="index" separator=",">
+      #{element ,jdbcType=VARCHAR}
+    </foreach>
+    and entity.isPrivate = ${_false}
+    and #{role, jdbcType=VARCHAR} in ('user','codeviewer')
+  </sql>
+
+    <select id="keepAuthorizedEntityUuidsForAnonymous" parameterType="map" resultType="String">
+    select
+      gr.entity_uuid
+    from
+      group_roles gr
+    where
+      gr.role=#{role, jdbcType=VARCHAR}
+      and gr.group_uuid is null
+      and gr.entity_uuid in
+      <foreach collection="entityUuids" open="(" close=")" item="element" index="index" separator=",">
+        #{element, jdbcType=VARCHAR}
+      </foreach>
+
+    union
+
+    <include refid="sqlSelectPublicEntitiesIfRole"/>
+  </select>
+
+  <select id="keepAuthorizedUsersForRoleAndEntity" parameterType="map" resultType="String">
+    select
+      gu.user_uuid
+    from
+      groups_users gu
+    inner join group_roles gr on
+      gr.group_uuid=gu.group_uuid
+    where
+      gr.entity_uuid=#{entityUuid, jdbcType=VARCHAR}
+      and gr.role=#{role, jdbcType=VARCHAR}
+      and gu.user_uuid in
+        <foreach collection="userUuids" open="(" close=")" item="uuid" separator=",">
+          #{uuid, jdbcType=VARCHAR}
+        </foreach>
+
+    union
+
+    select
+      ur.user_uuid
+    from
+      user_roles ur
+    where
+      ur.entity_uuid=#{entityUuid, jdbcType=VARCHAR}
+      and ur.role=#{role, jdbcType=VARCHAR}
+      and ur.user_uuid IN
+        <foreach collection="userUuids" open="(" close=")" item="uuid" separator=",">
+          #{uuid, jdbcType=VARCHAR}
+        </foreach>
+
+    union
+
+    select
+      u.uuid
+    from
+      users u
+    where
+      u.uuid in
+        <foreach collection="userUuids" open="(" close=")" item="uuid" separator=",">
+          #{uuid, jdbcType=VARCHAR}
+        </foreach>
+      and exists (
+        select
+          1
+        from
+          (<include refid="org.sonar.db.entity.EntityMapper.selectAll"/>) entity
+        where
+          entity.uuid =#{entityUuid, jdbcType=VARCHAR}
+          and entity.isPrivate = ${_false}
+          and #{role, jdbcType=VARCHAR} in ('user','codeviewer')
+      )
+  </select>
+
+  <select id="selectEntityPermissions" parameterType="map" resultType="String">
+    select ur.role
+    from user_roles ur
+    inner join  (<include refid="org.sonar.db.entity.EntityMapper.selectAll"/>) entity on entity.uuid = ur.entity_uuid
+    where
+      entity.uuid = #{entityUuid, jdbcType=VARCHAR} and
+      ur.user_uuid = #{userUuid, jdbcType=VARCHAR}
+
+    union
+
+    select gr.role
+    from group_roles gr
+    inner join groups_users gu on gr.group_uuid = gu.group_uuid
+    inner join  (<include refid="org.sonar.db.entity.EntityMapper.selectAll"/>) entity on entity.uuid = gr.entity_uuid
+    where
+      entity.uuid = #{entityUuid, jdbcType=VARCHAR} and
+      gu.user_uuid = #{userUuid, jdbcType=VARCHAR}
+
+    union
+
+    <include refid="sql_selectEntityPermissionsOfAnonymous"/>
+  </select>
+
+  <select id="selectEntityPermissionsObtainedViaManagedGroup" parameterType="map" resultType="org.sonar.db.permission.UserAndPermissionDto">
+    select
+      gu.user_uuid,
+      gr.role
+    from group_roles gr
+    inner join groups_users gu on gr.group_uuid = gu.group_uuid
+    inner join external_groups eg on gr.group_uuid = eg.group_uuid
+    where
+      gr.entity_uuid = #{entityUuid, jdbcType=VARCHAR}
+      and eg.external_identity_provider = #{managedInstanceProvider, jdbcType=VARCHAR}
+  </select>
+
+
+  <select id="countEntityPermissionsObtainedViaGroup" parameterType="map" resultType="org.sonar.db.permission.UserAndPermissionDto">
+    select
+      gu.user_uuid,
+      gr.role
+    from group_roles gr
+    inner join groups_users gu on gr.group_uuid = gu.group_uuid
+    where
+      gr.entity_uuid = #{entityUuid, jdbcType=VARCHAR}
+    and
+
+  </select>
+
+  <select id="selectEntityPermissionsOfAnonymous" parameterType="map" resultType="String">
+    <include refid="sql_selectEntityPermissionsOfAnonymous"/>
+  </select>
+
+  <sql id="sql_selectEntityPermissionsOfAnonymous">
+    select
+      gr.role
+    from
+      group_roles gr
+    inner join  (<include refid="org.sonar.db.entity.EntityMapper.selectAll"/>) entity on
+      entity.uuid = gr.entity_uuid
+    where
+      entity.uuid = #{entityUuid, jdbcType=VARCHAR}
+      and gr.group_uuid is null
+  </sql>
+
+  <select id="selectEmailSubscribersWithGlobalPermission" parameterType="map" resultType="org.sonar.db.EmailSubscriberDto">
+    select
+      u.login as "login",
+      ${_true} as "global",
+      u.email as "email"
+    from
+      users u
+    inner join user_roles ur on
+      ur.user_uuid = u.uuid
+      and ur.role=#{permission, jdbcType=VARCHAR}
+      and ur.entity_uuid is null
+    where
+      u.email is not null
+
+    union
+
+    select
+      u.login as "login",
+      ${_true} as "global",
+      u.email as "email"
+    from users u
+    inner join groups_users gu on
+      u.uuid=gu.user_uuid
+    inner join group_roles gr on
+      gr.group_uuid = gu.group_uuid
+      and gr.role = #{permission, jdbcType=VARCHAR}
+      and gr.entity_uuid is null
+    where
+      u.email is not null
+
+  </select>
+
+  <select id="keepAuthorizedLoginsOnEntity" parameterType="map" resultType="String">
+    select u.login
+    from users u
+    where
+      u.login in <foreach collection="logins" open="(" close=")" item="login" separator=",">#{login, jdbcType=VARCHAR}</foreach>
+      and (
+        exists (
+          select 1
+          from user_roles ur
+          inner join (<include refid="org.sonar.db.entity.EntityMapper.selectAll"/>) entity on entity.uuid = ur.entity_uuid
+          where
+            entity.kee =  #{entityKey, jdbcType=VARCHAR}
+            and ur.role = #{permission, jdbcType=VARCHAR}
+            and ur.user_uuid = u.uuid
+        ) or exists (
+          select 1
+          from (<include refid="org.sonar.db.entity.EntityMapper.selectAll"/>) entity
+          inner join group_roles gr on gr.entity_uuid = entity.uuid
+          inner join groups_users gu on gu.group_uuid = gr.group_uuid
+          where
+            entity.kee  =  #{entityKey, jdbcType=VARCHAR}
+            and gu.user_uuid = u.uuid
+            and gr.role = #{permission, jdbcType=VARCHAR}
+        )
+        <if test="permission == 'user' or permission == 'codeviewer'">
+          or exists (
+            select 1
+            from (<include refid="org.sonar.db.entity.EntityMapper.selectAll"/>) entity
+            where
+              entity.kee =  #{entityKey, jdbcType=VARCHAR}
+              and entity.isPrivate = ${_false}
+          )
+        </if>
+      )
+  </select>
+</mapper>

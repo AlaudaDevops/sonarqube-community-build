@@ -1,0 +1,26 @@
+description = 'SonarQube :: Authentication :: Bitbucket'
+
+configurations {
+    testImplementation.extendsFrom compileOnlyApi
+}
+
+dependencies {
+    // please keep the list ordered
+
+    api 'com.github.scribejava:scribejava-apis'
+    api 'com.github.scribejava:scribejava-core'
+    api 'com.google.code.gson:gson'
+    api project(':server:sonar-auth-common')
+
+    compileOnlyApi 'com.github.spotbugs:spotbugs-annotations'
+    compileOnlyApi 'com.squareup.okhttp3:okhttp'
+    compileOnlyApi 'jakarta.servlet:jakarta.servlet-api'
+    compileOnlyApi project(':sonar-core')
+
+    testImplementation 'com.squareup.okhttp3:mockwebserver'
+    testImplementation 'com.squareup.okhttp3:okhttp'
+    testImplementation 'junit:junit'
+    testImplementation 'org.assertj:assertj-core'
+    testImplementation 'org.mockito:mockito-core'
+    testImplementation project(path: ':server:sonar-webserver-api')
+}

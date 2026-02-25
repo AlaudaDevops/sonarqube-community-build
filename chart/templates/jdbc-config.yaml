@@ -1,0 +1,10 @@
+{{- if or .Values.jdbcOverwrite.enabled .Values.jdbcOverwrite.enable }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "sonarqube.fullname" . }}-jdbc-config
+  labels: {{- include "sonarqube.labels" . | nindent 4 }}
+data:
+  SONAR_JDBC_USERNAME: {{ template "jdbc.username" . }}
+  SONAR_JDBC_URL: {{ .Values.jdbcOverwrite.jdbcUrl | trim | quote }}
+{{- end }}

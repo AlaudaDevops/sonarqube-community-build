@@ -1,0 +1,30 @@
+{
+  "paging": {
+    "pageIndex": 1,
+    "pageSize": 25,
+    "total": 2
+  },
+  "organizations": [
+    {
+      "key": "foo-company",
+      "name": "Foo Company",
+      "actions": {
+        "admin": false,
+        "delete": false,
+        "provision": false
+      }
+    },
+    {
+      "key": "bar-company",
+      "name": "Bar Company",
+      "description": "The Bar company produces quality software too.",
+      "url": "https://www.bar.com",
+      "avatar": "https://www.bar.com/logo.png",
+      "actions": {
+        "admin": true,
+        "delete": true,
+        "provision": false
+      }
+    }
+  ]
+}

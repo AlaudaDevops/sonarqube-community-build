@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "mybatis-3-mapper.dtd">
+
+<mapper namespace="org.sonar.db.qualityprofile.QProfileEditUsersMapper">
+
+  <sql id="sqlColumns">
+    qeu.uuid as "uuid",
+    qeu.user_uuid as "userUuid",
+    qeu.qprofile_uuid as "qProfileUuid"
+  </sql>
+
+  <select id="selectByQProfileAndUser" parameterType="map" resultType="org.sonar.db.qualityprofile.QProfileEditUsersDto">
+    select
+    <include refid="sqlColumns"/>
+    from qprofile_edit_users qeu
+    where
+    qeu.user_uuid = #{userUuid, jdbcType=VARCHAR}
+    and qeu.qprofile_uuid = #{qProfileUuid, jdbcType=VARCHAR}
+  </select>
+
+  <select id="countByQuery" resultType="int">
+    select count(u.uuid)
+    <include refid="sqlSelectByQuery" />
+  </select>
+
+  <select id="selectByQuery" parameterType="map" resultType="org.sonar.db.user.SearchUserMembershipDto">
+    SELECT u.uuid as userUuid, u.name as name, qeu.uuid as uuid
+    <include refid="sqlSelectByQuery"/>
+    ORDER BY u.name ASC
+    <include refid="org.sonar.db.common.Common.pagination"/>
+  </select>
+
+  <sql id="sqlSelectByQuery">
+    FROM users u
+    LEFT JOIN qprofile_edit_users qeu ON qeu.user_uuid=u.uuid AND qeu.qprofile_uuid=#{query.qProfileUuid, jdbcType=VARCHAR}
+    <where>
+      <choose>
+        <when test="query.getMembership() == 'IN'">
+          AND qeu.uuid IS NOT NULL
+        </when>
+        <when test="query.getMembership() == 'OUT'">
+          AND qeu.uuid IS NULL
+        </when>
+      </choose>
+      <if test="query.getQuery() != null">
+        AND (
+        lower(u.name) like #{query.querySqlLowercase} ESCAPE '/'
+        or u.login like #{query.querySql} ESCAPE '/')
+      </if>
+      AND u.active=${_true}
+    </where>
+  </sql>
+
+  <select id="selectQProfileUuidsByUser" parameterType="map" resultType="string">
+    SELECT qeu.qprofile_uuid as qProfileUuid
+    FROM qprofile_edit_users qeu
+    <where>
+      qeu.user_uuid=#{userUuid, jdbcType=VARCHAR}
+    </where>
+  </select>
+
+  <insert id="insert" useGeneratedKeys="false" parameterType="map">
+    insert into qprofile_edit_users(
+    uuid,
+    user_uuid,
+    qprofile_uuid,
+    created_at
+    ) values (
+    #{dto.uuid, jdbcType=VARCHAR},
+    #{dto.userUuid, jdbcType=VARCHAR},
+    #{dto.qProfileUuid, jdbcType=VARCHAR},
+    #{now, jdbcType=BIGINT}
+    )
+  </insert>
+
+  <delete id="delete" parameterType="map">
+    delete from qprofile_edit_users
+    where qprofile_uuid = #{qProfileUuid, jdbcType=VARCHAR}
+    and user_uuid = #{userUuid, jdbcType=VARCHAR}
+  </delete>
+
+  <delete id="deleteByQProfiles" parameterType="map">
+    delete from qprofile_edit_users
+    where qprofile_uuid in <foreach collection="qProfileUuids" open="(" close=")" item="qProfileUuid" separator=",">#{qProfileUuid, jdbcType=VARCHAR}</foreach>
+  </delete>
+
+  <delete id="deleteByUser" parameterType="map">
+    delete from qprofile_edit_users
+    where user_uuid = #{userUuid, jdbcType=VARCHAR}
+  </delete>
+
+</mapper>
+

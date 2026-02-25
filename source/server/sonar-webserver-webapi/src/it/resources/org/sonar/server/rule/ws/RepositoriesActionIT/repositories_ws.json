@@ -1,0 +1,14 @@
+{
+  "repositories": [
+    {
+      "key": "common-ws",
+      "name": "SonarQube Common",
+      "language": "ws"
+    },
+    {
+      "key": "java",
+      "name": "SonarQube",
+      "language": "ws"
+    }
+  ]
+}

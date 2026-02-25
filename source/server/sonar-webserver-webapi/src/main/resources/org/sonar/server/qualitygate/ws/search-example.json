@@ -1,0 +1,21 @@
+{
+  "paging": {
+    "pageIndex": 1,
+    "pageSize": 100,
+    "total": 2
+  },
+  "results": [
+    {
+      "name": "Simple Java project analyzed with the SonarQube Runner",
+      "key": "somple-java",
+      "selected": true,
+      "aiCodeAssurance": "CONTAINS_AI_CODE"
+    },
+    {
+      "name": "My Project",
+      "key": "my-project",
+      "selected": false,
+      "aiCodeAssurance": "CONTAINS_AI_CODE"
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "mybatis-3-mapper.dtd">
+<mapper namespace="org.sonar.db.permission.template.PermissionTemplateCharacteristicMapper">
+  <sql id="columns">
+    ptc.uuid,
+    ptc.template_uuid as templateUuid,
+    ptc.permission_key as permission,
+    ptc.with_project_creator as withProjectCreator,
+    ptc.created_at as createdAt,
+    ptc.updated_at as updatedAt
+  </sql>
+
+  <select id="selectByUuid" parameterType="String" resultType="PermissionTemplateCharacteristic">
+    select
+    <include refid="columns" />
+    from perm_tpl_characteristics ptc
+    where ptc.uuid=#{uuid,jdbcType=VARCHAR}
+  </select>
+
+  <select id="selectByTemplateUuids" parameterType="String" resultType="PermissionTemplateCharacteristic">
+    select
+    <include refid="columns" />
+    from perm_tpl_characteristics ptc
+    where
+    ptc.template_uuid in
+    <foreach collection="templateUuids" open="(" close=")" item="templateUuid" separator=",">
+      #{templateUuid}
+    </foreach>
+    order by ptc.created_at
+  </select>
+
+  <select id="selectByPermissionAndTemplateUuid" parameterType="map" resultType="PermissionTemplateCharacteristic">
+    select
+    <include refid="columns" />
+    from perm_tpl_characteristics ptc
+    where ptc.template_uuid=#{templateUuid}
+    and ptc.permission_key=#{permission}
+    order by ptc.created_at
+  </select>
+
+  <insert id="insert" parameterType="PermissionTemplateCharacteristic">
+    insert into perm_tpl_characteristics(uuid, template_uuid, permission_key, with_project_creator, created_at, updated_at)
+    values(#{uuid, jdbcType=VARCHAR}, #{templateUuid, jdbcType=VARCHAR}, #{permission, jdbcType=VARCHAR},
+    #{withProjectCreator, jdbcType=BOOLEAN}, #{createdAt, jdbcType=BIGINT}, #{updatedAt, jdbcType=BIGINT})
+  </insert>
+
+  <update id="update" parameterType="PermissionTemplateCharacteristic" useGeneratedKeys="false">
+    update perm_tpl_characteristics set
+    with_project_creator=#{withProjectCreator, jdbcType=BOOLEAN},
+    updated_at=#{updatedAt, jdbcType=BIGINT}
+    where uuid=#{uuid}
+  </update>
+
+  <delete id="deleteByTemplateUuid" parameterType="String">
+    DELETE FROM perm_tpl_characteristics
+    WHERE template_uuid = #{permissionTemplateId}
+  </delete>
+
+  <delete id="deleteByTemplateUuids" parameterType="String">
+    delete from
+      perm_tpl_characteristics
+    where
+      template_uuid in
+      <foreach collection="templateUuids" open="(" close=")" item="templateUuid" separator=",">
+        #{templateUuid}
+      </foreach>
+  </delete>
+</mapper>

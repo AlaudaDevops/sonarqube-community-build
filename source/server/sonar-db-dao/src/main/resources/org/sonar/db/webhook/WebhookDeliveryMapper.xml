@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "mybatis-3-mapper.dtd">
+
+<mapper namespace="org.sonar.db.webhook.WebhookDeliveryMapper">
+
+  <sql id="sqlLiteColumns">
+    uuid,
+    project_uuid as projectUuid,
+    webhook_uuid as webhookUuid,
+    ce_task_uuid as ceTaskUuid,
+    name,
+    url,
+    success,
+    http_status as httpStatus,
+    duration_ms as durationMs,
+    created_at as createdAt
+  </sql>
+
+  <select id="selectByUuid" parameterType="String" resultType="org.sonar.db.webhook.WebhookDeliveryDto">
+    select
+    <include refid="sqlLiteColumns" />,
+    payload,
+    error_stacktrace as errorStacktrace
+    from webhook_deliveries
+    where uuid = #{uuid,jdbcType=VARCHAR}
+  </select>
+
+  <select id="countByWebhookUuid" parameterType="String" resultType="int">
+    select
+    count(1)
+    from webhook_deliveries
+    where webhook_uuid = #{webhookUuid,jdbcType=VARCHAR}
+  </select>
+
+  <select id="selectByWebhookUuid" resultType="org.sonar.db.webhook.WebhookDeliveryLiteDto">
+    select <include refid="sqlLiteColumns" />
+    from webhook_deliveries
+    where webhook_uuid = #{webhookUuid,jdbcType=VARCHAR}
+    order by created_at desc
+    <include refid="org.sonar.db.common.Common.pagination"/>
+  </select>
+
+  <select id="countByProjectUuid" parameterType="String" resultType="int">
+    select
+    count(1)
+    from webhook_deliveries
+    where project_uuid = #{projectUuid,jdbcType=VARCHAR}
+  </select>
+
+  <select id="selectOrderedByProjectUuid" resultType="org.sonar.db.webhook.WebhookDeliveryLiteDto">
+    select <include refid="sqlLiteColumns" />
+    from webhook_deliveries
+    where project_uuid = #{projectUuid,jdbcType=VARCHAR}
+    order by created_at desc
+    <include refid="org.sonar.db.common.Common.pagination"/>
+  </select>
+
+  <select id="selectOrderedByCeTaskUuid" resultType="org.sonar.db.webhook.WebhookDeliveryLiteDto">
+    select <include refid="sqlLiteColumns" />
+    from webhook_deliveries
+    where ce_task_uuid = #{ceTaskUuid,jdbcType=VARCHAR}
+    order by created_at desc
+    <include refid="org.sonar.db.common.Common.pagination"/>
+  </select>
+
+  <select id="countByCeTaskUuid" parameterType="String" resultType="int">
+    select
+    count(1)
+    from webhook_deliveries
+    where ce_task_uuid = #{ceTaskUuid,jdbcType=VARCHAR}
+  </select>
+
+  <insert id="insert" parameterType="org.sonar.db.webhook.WebhookDeliveryDto" useGeneratedKeys="false">
+    insert into webhook_deliveries (
+    uuid,
+    webhook_uuid,
+    project_uuid,
+    ce_task_uuid,
+    analysis_uuid,
+    name,
+    url,
+    success,
+    http_status,
+    duration_ms,
+    payload,
+    error_stacktrace,
+    created_at
+    ) values (
+    #{uuid,jdbcType=VARCHAR},
+    #{webhookUuid,jdbcType=VARCHAR},
+    #{projectUuid,jdbcType=VARCHAR},
+    #{ceTaskUuid,jdbcType=VARCHAR},
+    #{analysisUuid,jdbcType=VARCHAR},
+    #{name,jdbcType=VARCHAR},
+    #{url,jdbcType=VARCHAR},
+    #{success,jdbcType=BOOLEAN},
+    #{httpStatus,jdbcType=INTEGER},
+    #{durationMs,jdbcType=INTEGER},
+    #{payload,jdbcType=VARCHAR},
+    #{errorStacktrace,jdbcType=VARCHAR},
+    #{createdAt,jdbcType=TIMESTAMP}
+    )
+  </insert>
+
+  <select id="deleteByWebhookUuid" parameterType="String">
+    delete from webhook_deliveries
+    where webhook_uuid = #{webhookUuid,jdbcType=VARCHAR}
+  </select>
+
+  <delete id="deleteAllBeforeDate" parameterType="map">
+    delete from webhook_deliveries
+    where
+    created_at &lt; #{beforeDate,jdbcType=BIGINT}
+  </delete>
+</mapper>

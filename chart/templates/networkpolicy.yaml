@@ -1,0 +1,67 @@
+{{- if .Values.networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ template "sonarqube.fullname" . }}-network-policy
+  labels: {{- include "sonarqube.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ template "sonarqube.name" . }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: {{ template "sonarqube.name" . }}
+              release: {{ .Release.Name }}
+      ports:
+        - port: {{ .Values.service.internalPort }}
+    {{ if .Values.prometheusExporter.enabled }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              networking/namespace: {{ .Values.networkPolicy.prometheusNamespace }}
+      ports:
+        - port: {{ .Values.prometheusExporter.ceBeanPort }}
+          protocol: TCP
+        - port: {{ .Values.prometheusExporter.webBeanPort }}
+          protocol: TCP
+    {{ end }}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              networking/namespace: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+{{- end -}}
+
+{{- if and .Values.networkPolicy.enabled (or .Values.networkPolicy.additionalNetworkPolicies .Values.networkPolicy.additionalNetworkPolicys) }}
+---
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: {{ template "sonarqube.fullname" . }}-additional-network-policy
+  labels: {{- include "sonarqube.labels" . | nindent 4 }}
+spec:
+{{- if.Values.networkPolicy.additionalNetworkPolicys -}}
+{{- with .Values.networkPolicy.additionalNetworkPolicys -}}
+{{ toYaml . | nindent 2 }}
+{{- end -}}
+{{- else -}}
+{{- with .Values.networkPolicy.additionalNetworkPolicies -}}
+{{ toYaml . | nindent 2 }}
+{{- end -}}
+{{- end -}}
+{{- end -}}

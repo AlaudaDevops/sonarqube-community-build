@@ -1,0 +1,83 @@
+{
+  "paging": {
+    "pageIndex": 1,
+    "pageSize": 100,
+    "total": 3
+  },
+  "components": [
+    {
+      "key": "my_project",
+      "name": "My Project 1",
+      "qualifier": "TRK",
+      "isFavorite": true,
+      "tags": [
+        "finance",
+        "java"
+      ],
+      "visibility": "public",
+      "isAiCodeFixEnabled": false,
+      "aiCodeAssurance": "NONE",
+      "containsAiCode": false,
+      "uuid": "b8758c08-c624-43dd-97ed-02708c581f38"
+    },
+    {
+      "key": "another_project",
+      "name": "My Project 2",
+      "qualifier": "TRK",
+      "isFavorite": false,
+      "tags": [],
+      "visibility": "public",
+      "isAiCodeFixEnabled": false,
+      "aiCodeAssurance": "NONE",
+      "containsAiCode": false,
+      "uuid": "465dd3a2-8b3c-416f-87c8-493ffb5f203e"
+    },
+    {
+      "key": "third_project",
+      "name": "My Project 3",
+      "qualifier": "TRK",
+      "isFavorite": false,
+      "tags": [
+        "sales",
+        "offshore",
+        "java"
+      ],
+      "visibility": "public",
+      "isAiCodeFixEnabled": false,
+      "aiCodeAssurance": "NONE",
+      "containsAiCode": false,
+      "uuid": "e856618b-4556-4795-bb0e-0b64e409c533"
+    }
+  ],
+  "facets": [
+    {
+      "property": "coverage",
+      "values": [
+        {
+          "val": "NO_DATA",
+          "count": 0
+        },
+        {
+          "val": "*-30.0",
+          "count": 1
+        },
+        {
+          "val": "30.0-50.0",
+          "count": 0
+        },
+        {
+          "val": "50.0-70.0",
+          "count": 0
+        },
+        {
+          "val": "70.0-80.0",
+          "count": 0
+        },
+        {
+          "val": "80.0-*",
+          "count": 2
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "name": "My Quality Gate",
+  "conditions": [
+    {
+      "id": "AU-Tpxb--iU5OvuD2FLy",
+      "metric": "blocker_violations",
+      "op": "GT",
+      "error": "0"
+    },
+    {
+      "id": "AU-Tpxb--iU5OvuD2FLz",
+      "metric": "tests",
+      "op": "LT",
+      "error": "10"
+    }
+  ],
+  "isBuiltIn": false,
+  "isDefault": false,
+  "actions": {
+    "rename": true,
+    "setAsDefault": true,
+    "copy": true,
+    "associateProjects": true,
+    "delete": true,
+    "manageConditions": true,
+    "delegate": true,
+    "manageAiCodeAssurance": true
+  },
+  "caycStatus": "non-compliant",
+  "isAiCodeSupported": false
+}

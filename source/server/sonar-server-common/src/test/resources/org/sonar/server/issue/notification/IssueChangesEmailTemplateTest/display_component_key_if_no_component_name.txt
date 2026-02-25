@@ -1,0 +1,6 @@
+org.apache.struts.Action
+Rule: Avoid Cycles
+Message: Has 3 cycles
+
+
+More details at: http://nemo.sonarsource.org/project/issues?id=org.apache%3Astruts&issues=ABCDE&open=ABCDE

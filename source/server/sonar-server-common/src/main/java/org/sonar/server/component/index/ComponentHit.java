@@ -1,0 +1,49 @@
+/*
+ * SonarQube
+ * Copyright (C) 2009-2025 SonarSource Sàrl
+ * mailto:info AT sonarsource DOT com
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ */
+package org.sonar.server.component.index;
+
+import co.elastic.clients.elasticsearch.core.search.Hit;
+import java.util.List;
+import java.util.Optional;
+import javax.annotation.Nullable;
+
+import static java.util.Optional.ofNullable;
+import static org.sonar.server.component.index.ComponentIndexDefinition.FIELD_NAME;
+
+public record ComponentHit(@Nullable String uuid, @Nullable String highlightedText) {
+
+  public ComponentHit(String uuid) {
+    this(uuid, null);
+  }
+
+  public static <T> List<ComponentHit> fromSearchHitsV2(List<Hit<T>> hits) {
+    return hits.stream()
+      .map(ComponentHit::fromHitV2)
+      .toList();
+  }
+
+  private static <T> ComponentHit fromHitV2(Hit<T> hit) {
+    Optional<String> highlightedText = ofNullable(hit.highlight())
+      .flatMap(highlightMap -> ofNullable(highlightMap.get(FIELD_NAME)))
+      .flatMap(fragments -> fragments.stream().findFirst());
+
+    return new ComponentHit(hit.id(), highlightedText.orElse(null));
+  }
+}

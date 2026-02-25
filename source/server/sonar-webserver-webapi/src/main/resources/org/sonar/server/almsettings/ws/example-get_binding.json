@@ -1,0 +1,9 @@
+{
+  "key": "gh1",
+  "alm": "github",
+  "repository": "repo1",
+  "url": "https://api.github.com",
+  "summaryCommentEnabled": true,
+  "monorepo": false,
+  "repositoryUrl": "https://github.com/repo1"
+}
