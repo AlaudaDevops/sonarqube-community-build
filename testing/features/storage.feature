@@ -24,14 +24,14 @@
       - testdata/snippets/tpl-values-network-nodeport.yaml
       - testdata/snippets/tpl-values-storage-sc.yaml
       """
-    那么 "sonarqube" 可以正常访问
+    那么 Pod 资源检查通过
+      | name                   | path                                                                        | value                        |
+      | sonarqube-sc-sonarqube | $.spec.volumes[?(@.name == 'sonarqube')][0].persistentVolumeClaim.claimName | sonarqube-sc-sonarqube       |
+    并且 "sonarqube" 可以正常访问
       """
       url: http://<node.ip.random.readable>:<nodeport.http>
       timeout: 30m
       """
-    并且 Pod 资源检查通过
-      | name                   | path                                                                        | value                        |
-      | sonarqube-sc-sonarqube | $.spec.volumes[?(@.name == 'sonarqube')][0].persistentVolumeClaim.claimName | sonarqube-sc-sonarqube       |
     当 执行 "sonar 扫描" 脚本成功
       | command                                                                                              |`
       | bash scripts/scan_with_notoken.sh 'http://<node.ip.random.readable>:<nodeport.http>' admin 07Apples@07Apples@ repos/go-example sonar-scanner -Dsonar.host.url='http://<node.ip.random.readable>:<nodeport.http>' -Dsonar.projectKey=method-cli |
@@ -103,14 +103,14 @@
       - testdata/snippets/tpl-values-network-nodeport.yaml
       - testdata/values-storage-pvc.yaml
       """
-    那么 "sonarqube" 可以正常访问
+    那么 Pod 资源检查通过
+      | name                    | path                                                                        | value         |
+      | sonarqube-pvc-sonarqube | $.spec.volumes[?(@.name == 'sonarqube')][0].persistentVolumeClaim.claimName | sonarqube-pvc |
+    并且 "sonarqube" 可以正常访问
       """
       url: http://<node.ip.random.readable>:<nodeport.http>
       timeout: 30m
       """
-    并且 Pod 资源检查通过
-      | name                    | path                                                                        | value         |
-      | sonarqube-pvc-sonarqube | $.spec.volumes[?(@.name == 'sonarqube')][0].persistentVolumeClaim.claimName | sonarqube-pvc |
     假定 执行 "maven 扫描" 脚本成功
       | command                                                                                                                         |
       | bash scripts/scan_with_notoken.sh http://<node.ip.random.readable>:<nodeport.http> admin 07Apples@07Apples@ repos/maven-simple mvn verify sonar:sonar -Dsonar.projectKey=method-maven -Dsonar.projectName=method-maven -Dsonar.host.url=http://<node.ip.random.readable>:<nodeport.http> |

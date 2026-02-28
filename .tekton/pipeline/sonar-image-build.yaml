@@ -177,6 +177,7 @@ spec:
             ./gradlew clean build -DbuildNumber="$BUILD_NUMBER" -x test --console plain --max-workers=4 --build-cache --info;
 
             ls -alh sonar-application/build/distributions
+            echo "Build SonarQube application successfully."
       workspaces:
         - name: source
           workspace: source

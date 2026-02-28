@@ -4,6 +4,10 @@ description: SonarQube is a self-managed, automatic code review tool that system
 type: application
 version: 2026.1.0
 appVersion: 2026.1.0
+
+# add alauda chart settings
+community:
+  enabled: true
 keywords:
   - coverage
   - security
