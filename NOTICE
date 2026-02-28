@@ -1,0 +1,9 @@
+sonarqube-community-build NOTICE
+
+This distribution includes:
+
+- SonarQube source code copyright (C) 2008-2024 SonarSource SA, licensed under GNU Lesser General Public License v3.0 (`source/LICENSE.txt`).
+- Helm chart content originally from Oteemo Inc., licensed under the MIT License (`chart/LICENSE`).
+- Elasticsearch client libraries and related modules (including `org.elasticsearch.client:elasticsearch-rest-high-level-client`, `org.elasticsearch.plugin:transport-netty4-client`, and `org.codelibs.elasticsearch.module` components), licensed under Elastic License 2.0 (`source/ELASTIC-LICENSE-2.0.txt`) and subject to their respective copyright holders (including Elasticsearch B.V. and contributors).
+
+Additional third-party components are distributed under their respective licenses. All required copyright and license notices must be retained when redistributing.

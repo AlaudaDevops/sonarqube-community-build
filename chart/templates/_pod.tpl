@@ -43,6 +43,50 @@ spec:
     {{- if .Values.extraInitContainers }}
     {{- toYaml .Values.extraInitContainers | nindent 4 }}
     {{- end }}
+    - name: "load-config"
+      image: {{ template "busybox.image" . }}
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      {{- with (include "sonarqube.initContainerSecurityContext" .) }}
+      securityContext: {{- . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.initContainers.resources }}
+      resources: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      command: ["sh", "-c"]
+      args:
+        - |
+          mkdir -p /etc/sonar/config/jdbc
+          cp /tmp/config-source/jdbc/* /etc/sonar/config/jdbc/ 2>/dev/null || true
+          mkdir -p /etc/sonar/config/proxy
+          cp /tmp/config-source/proxy/* /etc/sonar/config/proxy/ 2>/dev/null || true
+          {{- range .Values.extraConfig.secrets }}
+          mkdir -p /etc/sonar/config/secrets/{{ . }}
+          cp /tmp/config-source/secrets/{{ . }}/* /etc/sonar/config/secrets/{{ . }}/ 2>/dev/null || true
+          {{- end }}
+          {{- range .Values.extraConfig.configmaps }}
+          mkdir -p /etc/sonar/config/configmaps/{{ . }}
+          cp /tmp/config-source/configmaps/{{ . }}/* /etc/sonar/config/configmaps/{{ . }}/ 2>/dev/null || true
+          {{- end }}
+      volumeMounts:
+        - name: jdbc-config-volume
+          mountPath: /tmp/config-source/jdbc
+          readOnly: true
+        - name: http-proxies-volume
+          mountPath: /tmp/config-source/proxy
+          readOnly: true
+        {{- range .Values.extraConfig.secrets }}
+        - name: extra-secret-{{ . }}-volume
+          mountPath: /tmp/config-source/secrets/{{ . }}
+          readOnly: true
+        {{- end }}
+        {{- range .Values.extraConfig.configmaps }}
+        - name: extra-configmap-{{ . }}-volume
+          mountPath: /tmp/config-source/configmaps/{{ . }}
+          readOnly: true
+        {{- end }}
+        - name: sonar-config-dir
+          mountPath: /etc/sonar/config
+
     {{- if .Values.caCerts.enabled }}
     - name: ca-certs
       image: {{ default (include "sonarqube.image" $) .Values.caCerts.image }}
@@ -132,15 +176,18 @@ spec:
       resources: {{- toYaml . | nindent 8 }}
       {{- end }}
       command: ["/bin/sh", "-c"]
-      args: ["curl -s '{{ include "prometheusExporter.downloadURL" . }}' {{ if $.Values.prometheusExporter.noCheckCertificate }}--insecure{{ end }} --output /data/jmx_prometheus_javaagent.jar -v"]
-      volumeMounts:
-        - mountPath: /data
+      args:
+        - |
+          {{- include "sonarqube.loadProxyScript" "PROMETHEUS-EXPORTER" | nindent 10 }}
+          # Download Prometheus exporter
+          curl -s '{{ include "prometheusExporter.downloadURL" . }}' {{ if $.Values.prometheusExporter.noCheckCertificate }}--insecure{{ end }} --output /data/jmx_prometheus_javaagent.jar -v
+      volumeMounts:        - mountPath: /data
           name: sonarqube
           subPath: data
+        - name: sonar-config-dir
+          mountPath: /etc/sonar/config
+          readOnly: true
       env:
-        {{- with (include "sonarqube.prometheusExporterProxy.env" .) }}
-        {{- . | nindent 8 }}
-        {{- end }}
         {{- (include "sonarqube.combined_env" . | fromJsonArray) | toYaml | trim | nindent 8 }}
     {{- end }}
     {{- if and .Values.persistence.enabled .Values.initFs.enabled (not .Values.OpenShift.enabled) }}
@@ -180,11 +227,26 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     {{- end }}
-    {{- if .Values.plugins.install }}
+    {{- if or (.Values.plugins.install) (.Values.plugins.useDefaultPluginsPackage) }}
     - name: install-plugins
-      image: {{ default (include "sonarqube.image" $) .Values.plugins.image }}
+      image: {{ template "plugins.image" . }}
       imagePullPolicy: {{ .Values.image.pullPolicy  }}
-      command: ["sh", "-e", "/tmp/scripts/install_plugins.sh"]
+      {{- if .Values.plugins.useDefaultPluginsPackage }}
+      command: ["sh",
+        "-c",
+        "mkdir -p /opt/sonarqube/extensions/plugins/tmp &&
+        rm -f /opt/sonarqube/extensions/plugins/tmp/* &&
+        cp /tmp/plugins/*.jar /opt/sonarqube/extensions/plugins/tmp/"
+        ]
+      {{- else }}
+      command: ["sh", "-e"]
+      args:
+        - -c
+        - |
+          {{- include "sonarqube.loadProxyScript" "PLUGINS" | nindent 10 }}
+          # Execute install script
+          /tmp/scripts/install_plugins.sh
+      {{- end }}
       {{- with (default (fromYaml (include "sonarqube.initContainerSecurityContext" .)) .Values.plugins.securityContext) }}
       securityContext: {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -197,14 +259,14 @@ spec:
           subPath: extensions/plugins
         - name: install-plugins
           mountPath: /tmp/scripts/
+        - name: sonar-config-dir
+          mountPath: /etc/sonar/config
+          readOnly: true
         {{- if .Values.plugins.netrcCreds }}
         - name: plugins-netrc-file
           mountPath: /root
         {{- end }}
       env:
-        {{- with (include "sonarqube.install-plugins-proxy.env" .) }}
-        {{- . | nindent 8 }}
-        {{- end }}
         {{- (include "sonarqube.combined_env" . | fromJsonArray) | toYaml | trim | nindent 8 }}
     {{- end }}
     {{- if and .Values.jdbcOverwrite.oracleJdbcDriver .Values.jdbcOverwrite.oracleJdbcDriver.url }}
@@ -235,6 +297,36 @@ spec:
       env:
         {{- (include "sonarqube.combined_env" . | fromJsonArray) | toYaml | trim | nindent 8 }}
     {{- end }}
+    {{- if or (and .Values.persistence.enabled .Values.persistence.hostPath) (and .Values.persistence.host.nodeName .Values.persistence.host.path) }}
+    # avoid hostpath volume permission issue
+    - name: "change-permission"
+      resources: {{- toYaml .Values.resources | nindent 8 }}
+      image: "{{ template "initSysctl.image" . }}"
+      imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+      command: [ "/bin/sh" ]
+      args: [ "-c", "chown -R 1000:1000 {{ .Values.sonarqubeFolder }}" ]
+      securityContext:
+        runAsUser: 0
+      volumeMounts:
+        - mountPath: {{ .Values.sonarqubeFolder }}
+          name: sonarqube
+        {{- if .Values.sonarSecretKey }}
+        - mountPath: {{ .Values.sonarqubeFolder }}/secret/
+          name: secret
+        {{- end }}
+        - mountPath: {{ .Values.sonarqubeFolder }}/temp
+          name: sonarqube
+          subPath: temp
+        - mountPath: {{ .Values.sonarqubeFolder }}/logs
+          name: sonarqube
+          subPath: logs
+        - mountPath: {{ .Values.sonarqubeFolder }}/data
+          name: sonarqube
+          subPath: data
+        - mountPath: {{ .Values.sonarqubeFolder }}/extensions
+          name: sonarqube
+          subPath: extensions
+    {{- end  }}
   containers:
     {{- with .Values.extraContainers }}
     {{- toYaml . | nindent 4 }}
@@ -242,6 +334,8 @@ spec:
     - name: {{ .Chart.Name }}
       image: {{ include "sonarqube.image" . }}
       imagePullPolicy: {{ .Values.image.pullPolicy }}
+      command:
+        - /tmp/scripts/copy_plugins.sh
       ports:
         - name: http
           containerPort: {{ .Values.service.internalPort }}
@@ -262,13 +356,6 @@ spec:
         - name: IS_HELM_OPENSHIFT_ENABLED
           value: "true"
         {{- end }}
-        {{- if or .Values.jdbcOverwrite.enabled .Values.jdbcOverwrite.enable }}
-        - name: SONAR_JDBC_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: {{ include "jdbc.secret" . }}
-              key: {{ include "jdbc.secretPasswordKey" . }}
-        {{- end }}
         - name: SONAR_WEB_SYSTEMPASSCODE
           valueFrom:
             secretKeyRef:
@@ -280,23 +367,6 @@ spec:
               key: SONAR_WEB_SYSTEMPASSCODE
             {{- end }}
         {{- (include "sonarqube.combined_env" . | fromJsonArray) | toYaml | trim | nindent 8 }}
-      envFrom:
-        {{- if or .Values.jdbcOverwrite.enabled .Values.jdbcOverwrite.enable }}
-        - configMapRef:
-            name: {{ include "sonarqube.fullname" . }}-jdbc-config
-        {{- end }}
-        {{- if include "sonarqube.azure.enabled" . }}
-        - configMapRef:
-            name: {{ template "sonarqube.fullname" . }}-azure-config
-        {{- end }}
-        {{- range .Values.extraConfig.secrets }}
-        - secretRef:
-            name: {{ . }}
-        {{- end }}
-        {{- range .Values.extraConfig.configmaps }}
-        - configMapRef:
-            name: {{ . }}
-        {{- end }}
       livenessProbe:
         {{- tpl (omit .Values.livenessProbe "sonarWebContext" | toYaml) . | nindent 8 }}
       readinessProbe:
@@ -323,8 +393,15 @@ spec:
         - mountPath: {{ .Values.sonarqubeFolder }}/logs
           name: sonarqube
           subPath: logs
+        - name: jdbc-secret-volume
+          mountPath: /run/postgresql/secret
+          readOnly: true
         - mountPath: /tmp
           name: tmp-dir
+        - name: copy-plugins
+          mountPath: /tmp/scripts
+        - name: sonar-config-dir
+          mountPath: /etc/sonar/config
         {{- if or .Values.sonarProperties .Values.sonarSecretProperties .Values.sonarSecretKey (not .Values.elasticsearch.bootstrapChecks) }}
         - mountPath: {{ .Values.sonarqubeFolder }}/conf/
           name: concat-dir
@@ -435,7 +512,7 @@ spec:
           - key: init_fs.sh
             path: init_fs.sh
     {{- end }}
-    {{- if .Values.plugins.install }}
+    {{- if or (.Values.plugins.install) (.Values.plugins.useDefaultPluginsPackage) }}
     - name: install-plugins
       configMap:
         name: {{ include "sonarqube.fullname" . }}-install-plugins
@@ -466,13 +543,18 @@ spec:
             path: prometheus-ce-config.yaml
     {{- end }}
     - name: sonarqube
-      {{- if and .Values.persistence.enabled (not .Values.persistence.hostPath) }}
+      {{- if and .Values.persistence.enabled (not (or .Values.persistence.hostPath (and .Values.persistence.host.nodeName .Values.persistence.host.path))) }}
       persistentVolumeClaim:
         claimName: {{ if .Values.persistence.existingClaim }}{{ .Values.persistence.existingClaim }}{{- else }}{{ include "sonarqube.fullname" . }}{{- end }}
       {{- else if and .Values.persistence.enabled .Values.persistence.hostPath }}
       hostPath:
          path: {{ .Values.persistence.hostPath.path }}
          type: {{ .Values.persistence.hostPath.type }}
+      # 兼容旧版本自定义的 hostPath
+      {{- else if and .Values.persistence.host.nodeName .Values.persistence.host.path }}
+      hostPath:
+        path: {{ .Values.persistence.host.path }}
+        type: DirectoryOrCreate
       {{- else }}
       emptyDir: {{- toYaml .Values.emptyDir | nindent 8 }}
       {{- end }}
@@ -482,5 +564,46 @@ spec:
     - name : concat-dir
       emptyDir: {{- toYaml .Values.emptyDir | nindent 8 }}
       {{- end }}
-
+    - name: copy-plugins
+      configMap:
+        name: {{ template "sonarqube.fullname" . }}-copy-plugins
+        defaultMode: 0755
+        items:
+          - key: copy_plugins.sh
+            path: copy_plugins.sh
+    - name: jdbc-secret-volume
+      projected:
+        sources:
+          - secret:
+              name: {{ template "jdbc.secret" . }}
+              items:
+                - key: {{ template "jdbc.secretPasswordKey" . }}
+                  path: SONAR_JDBC_PASSWORD
+    - name: sonar-config-dir
+      emptyDir:
+        medium: Memory
+    - name: jdbc-config-volume
+      configMap:
+        name: {{ include "sonarqube.fullname" . }}-jdbc-config
+        defaultMode: 0444
+    - name: http-proxies-volume
+      secret:
+        {{- if .Values.httpProxySecret }}
+        secretName: {{ .Values.httpProxySecret }}
+        {{- else }}
+        secretName: {{ include "sonarqube.fullname" . }}-http-proxies
+        {{- end }}
+        defaultMode: 0400
+    {{- range .Values.extraConfig.secrets }}
+    - name: extra-secret-{{ . }}-volume
+      secret:
+        secretName: {{ . }}
+        defaultMode: 0400
+    {{- end }}
+    {{- range .Values.extraConfig.configmaps }}
+    - name: extra-configmap-{{ . }}-volume
+      configMap:
+        name: {{ . }}
+        defaultMode: 0444
+    {{- end }}
 {{- end -}}

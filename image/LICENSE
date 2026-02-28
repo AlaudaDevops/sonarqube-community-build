@@ -1,0 +1,3 @@
+Image Licensing Overview
+
+The Dockerfiles and scripts in this directory build images that contain the SonarQube application binaries produced from the `source/` tree. Those binaries are licensed under the GNU Lesser General Public License v3.0 (see `../source/LICENSE.txt`). The images also bundle Elasticsearch client components that are provided under the Elastic License 2.0 (see `../source/ELASTIC-LICENSE-2.0.txt`). Retain these notices and license files when redistributing images built from this directory.

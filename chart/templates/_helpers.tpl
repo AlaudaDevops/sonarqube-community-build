@@ -50,8 +50,9 @@ app.kubernetes.io/version: {{ (tpl (include "image.tag" .) . ) | trunc 63 | trim
 {{- end -}}
 
 {{/*
+Use _alauda.tpl to replace.
+
 Expand the Application Image name.
-*/}}
 {{- define "sonarqube.image" -}}
 {{- if and .Values.global .Values.global.azure .Values.global.azure.images .Values.global.azure.images.sonarqube }}
 {{- printf "%s/%s:%s" .Values.global.azure.images.sonarqube.registry .Values.global.azure.images.sonarqube.image .Values.global.azure.images.sonarqube.tag }}
@@ -59,6 +60,7 @@ Expand the Application Image name.
 {{- printf "%s:%s" .Values.image.repository (tpl (include "image.tag" .) .) }}
 {{- end -}}
 {{- end -}}
+*/}}
 
 {{/*
 Check if Azure configuration is complete
@@ -269,74 +271,21 @@ Set combined_env, ensuring we dont have any duplicates with our features and som
 
 
 {{/*
-  generate Proxy env var from httpProxySecret
+Generate shell script to load proxy configuration from mounted files
+Usage: include "sonarqube.loadProxyScript" "PLUGINS"
+Parameter: the proxy key prefix ("PLUGINS" or "PROMETHEUS-EXPORTER")
 */}}
-{{- define "sonarqube.proxyFromSecret" -}}
-- name: http_proxy
-  valueFrom:
-    secretKeyRef:
-      name: {{ .Values.httpProxySecret }}
-      key: http_proxy
-- name: https_proxy
-  valueFrom:
-    secretKeyRef:
-      name: {{ .Values.httpProxySecret }}
-      key: https_proxy
-- name: no_proxy
-  valueFrom:
-    secretKeyRef:
-      name: {{ .Values.httpProxySecret }}
-      key: no_proxy
-{{- end -}}
-
-{{/*
-  generate prometheusExporter proxy env var
-*/}}
-{{- define "sonarqube.prometheusExporterProxy.env" -}}
-{{- if .Values.httpProxySecret -}}
-{{- include "sonarqube.proxyFromSecret" . }}
-{{- else -}}
-- name: http_proxy
-  valueFrom:
-    secretKeyRef:
-      name: {{ template "sonarqube.fullname" . }}-http-proxies
-      key: PROMETHEUS-EXPORTER-HTTP-PROXY
-- name: https_proxy
-  valueFrom:
-    secretKeyRef:
-      name: {{ template "sonarqube.fullname" . }}-http-proxies
-      key: PROMETHEUS-EXPORTER-HTTPS-PROXY
-- name: no_proxy
-  valueFrom:
-    secretKeyRef:
-      name: {{ template "sonarqube.fullname" . }}-http-proxies
-      key: PROMETHEUS-EXPORTER-NO-PROXY
-{{- end -}}
-{{- end -}}
-
-{{/*
-  generate install-plugins proxy env var
-*/}}
-{{- define "sonarqube.install-plugins-proxy.env" -}}
-{{- if .Values.httpProxySecret -}}
-{{- include "sonarqube.proxyFromSecret" . }}
-{{- else -}}
-- name: http_proxy
-  valueFrom:
-    secretKeyRef:
-      name: {{ template "sonarqube.fullname" . }}-http-proxies
-      key: PLUGINS-HTTP-PROXY
-- name: https_proxy
-  valueFrom:
-    secretKeyRef:
-      name: {{ template "sonarqube.fullname" . }}-http-proxies
-      key: PLUGINS-HTTPS-PROXY
-- name: no_proxy
-  valueFrom:
-    secretKeyRef:
-      name: {{ template "sonarqube.fullname" . }}-http-proxies
-      key: PLUGINS-NO-PROXY
-{{- end -}}
+{{- define "sonarqube.loadProxyScript" -}}
+{{- $prefix := . -}}
+# Load proxy configuration (supports both custom httpProxySecret and auto-generated format)
+# Custom httpProxySecret format: http_proxy, https_proxy, no_proxy
+[ -f /etc/sonar/config/proxy/http_proxy ] && export http_proxy=$(cat /etc/sonar/config/proxy/http_proxy)
+[ -f /etc/sonar/config/proxy/https_proxy ] && export https_proxy=$(cat /etc/sonar/config/proxy/https_proxy)
+[ -f /etc/sonar/config/proxy/no_proxy ] && export no_proxy=$(cat /etc/sonar/config/proxy/no_proxy)
+# Auto-generated format: {{ $prefix }}-HTTP-PROXY, etc.
+[ -f /etc/sonar/config/proxy/{{ $prefix }}-HTTP-PROXY ] && export http_proxy=$(cat /etc/sonar/config/proxy/{{ $prefix }}-HTTP-PROXY)
+[ -f /etc/sonar/config/proxy/{{ $prefix }}-HTTPS-PROXY ] && export https_proxy=$(cat /etc/sonar/config/proxy/{{ $prefix }}-HTTPS-PROXY)
+[ -f /etc/sonar/config/proxy/{{ $prefix }}-NO-PROXY ] && export no_proxy=$(cat /etc/sonar/config/proxy/{{ $prefix }}-NO-PROXY)
 {{- end -}}
 
 {{/*
