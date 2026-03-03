@@ -32,5 +32,6 @@ ENV PATH="${PATH}:/app/sonar-scanner/bin:/app/bin"
 ENV CI=true
 ENV LANG=zh_CN.UTF-8
 ENV LC_ALL=zh_CN.UTF-8
-ENV TEST_COMMAND="/app/bin/sonarqube-e2e.test"
+ENV TEST_COMMAND="/app/bin/sonarqube-e2e.test" \
+    SONARQUBE_VERSION=2025.1.0
 ENTRYPOINT ["/app/testing/sonarqube-e2e.test"]

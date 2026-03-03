@@ -7,21 +7,8 @@ import (
 	"github.com/AlaudaDevops/bdd/asserts"
 	"github.com/AlaudaDevops/bdd/logger"
 	"github.com/AlaudaDevops/bdd/steps/kubernetes/resource"
-	"github.com/cucumber/godog"
 	"go.uber.org/zap"
 )
-
-// Steps provides Kubernetes resource management step definitions
-type Steps struct {
-}
-
-// InitializeSteps registers resource assertion and import steps
-func (cs Steps) InitializeSteps(ctx context.Context, scenarioCtx *godog.ScenarioContext) context.Context {
-	scenarioCtx.Step(`^"([^"]*)" 实例资源检查通过$`, stepSonarqubeResourceConditionCheck)
-	scenarioCtx.Step(`^SSO 测试通过$`, checkSSo)
-	scenarioCtx.Step(`^SonarQube 分析通过$`, WaitForAnalysis)
-	return ctx
-}
 
 func stepSonarqubeResourceConditionCheck(ctx context.Context, instanceName string) (context.Context, error) {
 	log := logger.LoggerFromContext(ctx)

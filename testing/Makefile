@@ -20,7 +20,7 @@ test: create-testing-ns
 	$(TEST_COMMAND) $(GODOG_ARGS) --godog.tags=$(TAGS)
 
 test-e2e: create-testing-ns
-	$(TEST_COMMAND) $(GODOG_ARGS) --godog.tags="@e2e"
+	INSECURE_SKIP_TLS_VERIFY=true $(TEST_COMMAND) $(GODOG_ARGS) --godog.tags="@e2e"
 
 # This test will run in other tests, so we need to add '--bdd.cleanup=false' to avoid the resources being cleanup
 sonarqube: create-testing-ns
