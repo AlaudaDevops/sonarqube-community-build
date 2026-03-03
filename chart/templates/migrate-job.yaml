@@ -1,0 +1,132 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ (printf "%s-migration" (include "sonarqube.fullname" .) | trunc 63) | trimSuffix "-" }}
+  labels:
+    app: {{ template "sonarqube.name" . }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+    helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+  {{- range $key, $value := .Values.service.labels }}
+    {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "3"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/resource-policy": "null"
+spec:
+  # backoffLimit: 10
+  template:
+    metadata:
+      name: sonarqube-db-migration
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: db-migration
+        image: "{{ template "sonarqube.image" . }}"
+        command: ["/bin/bash", "-c"]
+        resources:
+          limits:
+            cpu: 200m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        args:
+          - |
+            #!/bin/bash
+            set -u -o pipefail
+
+            # define a function to echo message
+            Echo() {
+                # force flush stdout
+                stdbuf --output=0 echo "[`date "+%F %T"`] $@" 1>&2;
+                return
+            }
+
+            SONARQUBE_API="http://{{- template "sonarqube.fullname" . -}}:{{- .Values.service.internalPort -}}/api"
+
+            STATUS_API_URL="$SONARQUBE_API/system/status"
+            # Case 1: {"version":"x.x.x","status":"DB_MIGRATION_NEEDED"}
+            # Case 2: {"id":"0D7FCB3E-AY-gZuGYKQ4ce_7DseY5","version":"x.x.x","status":"UP"}
+
+            MIGRATION_STATUS_URL="$SONARQUBE_API/system/db_migration_status"
+            # Case 1: {"state":"MIGRATION_REQUIRED","message":"Database migration is required. DB migration can be started using WS /api/system/migrate_db."}
+            # Case 2: {"state":"MIGRATION_SUCCEEDED","message":"Migration succeeded.","startedAt":"2024-05-23T09:09:08+0000"}
+
+            POST_MIGRATE_URL="$SONARQUBE_API/system/migrate_db"
+
+            check_api_status() {
+              RETRY_COUNT=720
+              SLEEP_INTERVAL=10
+              TARGET_VERSION="26.1.0"
+
+              for i in $(seq 1 $RETRY_COUNT); do
+                status=$(curl -s -o /dev/null -w "%{http_code}" $STATUS_API_URL)
+                response=$(curl -s $STATUS_API_URL)
+
+                if [ "$status" -eq 200 ]; then
+                  Echo "Response from API: $response"
+                  if echo "$response" | grep -q "\"version\":\"$TARGET_VERSION"; then
+                    Echo "New version API is up, checking if database migration is needed..."
+                    return 0
+                  else
+                    Echo "Sonarqube is not $TARGET_VERSION, retrying $i..."
+                  fi
+                else
+                  Echo "Failed to connect API, Status: ${status}, retrying $i..."
+                fi
+
+                sleep $SLEEP_INTERVAL
+              done
+
+              Echo "Failed to connect API after $RETRY_COUNT attempts, exiting..."
+              exit 1
+            }
+
+            check_db_migration_needed() {
+              response=$(curl -s $STATUS_API_URL)
+              Echo "Response from API: $response"
+              if echo "$response" | grep -q '"status":"UP"'; then
+                Echo "No database migration needed, exiting..."
+                exit 0
+              elif echo "$response" | grep -q 'DB_MIGRATION_NEEDED'; then
+                Echo "Database migration needed, proceeding with migration..."
+                curl -s -X POST $POST_MIGRATE_URL
+                if [ $? -ne 0 ]; then
+                  Echo "Failed to start database migration, exiting..."
+                  exit 1
+                fi
+
+                echo
+                Echo "Migration requested, monitoring status..."
+                monitor_db_migration
+              else
+                Echo "Unknown response from API, exiting..."
+                exit 1
+              fi
+            }
+
+            monitor_db_migration() {
+              for i in {1..720}; do
+                response=$(curl -s $STATUS_API_URL)
+                Echo "Response from API: $response"
+                if echo "$response" | grep -q '"status":"UP"'; then
+                  Echo "Database migration successful!"
+                  exit 0
+                fi
+                Echo "Waiting for database migration to complete... attempt ${i}"
+                sleep 10
+              done
+              Echo "Database migration did not complete within expected time, exiting..."
+              exit 1
+            }
+
+            _main() {
+              Echo "Checking database migration status..."
+              check_api_status
+              check_db_migration_needed
+            }
+
+            _main
