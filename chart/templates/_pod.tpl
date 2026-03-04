@@ -40,6 +40,62 @@ spec:
     {{- end }}
   {{- end }}
   initContainers:
+    {{- if or (and .Values.persistence.enabled .Values.persistence.hostPath) (and .Values.persistence.host.nodeName .Values.persistence.host.path) }}
+    # avoid hostpath volume permission issue
+    - name: "change-permission"
+      resources: {{- toYaml .Values.resources | nindent 8 }}
+      image: "{{ template "initSysctl.image" . }}"
+      imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+      command: [ "/bin/sh" ]
+      args: [ "-c", "chown -R 1000:1000 {{ .Values.sonarqubeFolder }}" ]
+      securityContext:
+        runAsUser: 0
+      volumeMounts:
+        - mountPath: {{ .Values.sonarqubeFolder }}
+          name: sonarqube
+        {{- if .Values.sonarSecretKey }}
+        - mountPath: {{ .Values.sonarqubeFolder }}/secret/
+          name: secret
+        {{- end }}
+        - mountPath: {{ .Values.sonarqubeFolder }}/temp
+          name: sonarqube
+          subPath: temp
+        - mountPath: {{ .Values.sonarqubeFolder }}/logs
+          name: sonarqube
+          subPath: logs
+        - mountPath: {{ .Values.sonarqubeFolder }}/data
+          name: sonarqube
+          subPath: data
+        - mountPath: {{ .Values.sonarqubeFolder }}/extensions
+          name: sonarqube
+          subPath: extensions
+        {{- if .Values.plugins.useDefaultPluginsPackage }}
+        - name: webapp
+          mountPath: {{ .Values.sonarqubeFolder }}/web
+        {{- end }}
+    {{- end  }}
+    {{- if and .Values.persistence.enabled .Values.initFs.enabled (not .Values.OpenShift.enabled) }}
+    - name: init-fs
+      image: {{ default (include "busybox.image" $) .Values.initFs.image }}
+      imagePullPolicy: {{ .Values.image.pullPolicy  }}
+      {{- with (default (fromYaml (include "sonarqube.initContainerSecurityContext" .)) .Values.initFs.securityContext) }}
+      securityContext: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with (default .Values.initContainers.resources .Values.initFs.resources) }}
+      resources: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      command: ["sh", "-e", "/tmp/scripts/init_fs.sh"]
+      volumeMounts:
+        - name: init-fs
+          mountPath: /tmp/scripts/
+        - mountPath: {{ .Values.sonarqubeFolder }}
+          name: sonarqube
+        - mountPath: /tmp
+          name: tmp-dir
+        {{- with .Values.persistence.mounts }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    {{- end }}
     {{- if .Values.extraInitContainers }}
     {{- toYaml .Values.extraInitContainers | nindent 4 }}
     {{- end }}
@@ -181,7 +237,8 @@ spec:
           {{- include "sonarqube.loadProxyScript" "PROMETHEUS-EXPORTER" | nindent 10 }}
           # Download Prometheus exporter
           curl -s '{{ include "prometheusExporter.downloadURL" . }}' {{ if $.Values.prometheusExporter.noCheckCertificate }}--insecure{{ end }} --output /data/jmx_prometheus_javaagent.jar -v
-      volumeMounts:        - mountPath: /data
+      volumeMounts:
+        - mountPath: /data
           name: sonarqube
           subPath: data
         - name: sonar-config-dir
@@ -189,43 +246,6 @@ spec:
           readOnly: true
       env:
         {{- (include "sonarqube.combined_env" . | fromJsonArray) | toYaml | trim | nindent 8 }}
-    {{- end }}
-    {{- if and .Values.persistence.enabled .Values.initFs.enabled (not .Values.OpenShift.enabled) }}
-    - name: init-fs
-      image: {{ default (include "sonarqube.image" $) .Values.initFs.image }}
-      imagePullPolicy: {{ .Values.image.pullPolicy  }}
-      {{- with (default (fromYaml (include "sonarqube.initContainerSecurityContext" .)) .Values.initFs.securityContext) }}
-      securityContext: {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with (default .Values.initContainers.resources .Values.initFs.resources) }}
-      resources: {{- toYaml . | nindent 8 }}
-      {{- end }}
-      command: ["sh", "-e", "/tmp/scripts/init_fs.sh"]
-      volumeMounts:
-        - name: init-fs
-          mountPath: /tmp/scripts/
-        - mountPath: {{ .Values.sonarqubeFolder }}/data
-          name: sonarqube
-          subPath: data
-        - mountPath: {{ .Values.sonarqubeFolder }}/temp
-          name: sonarqube
-          subPath: temp
-        - mountPath: {{ .Values.sonarqubeFolder }}/logs
-          name: sonarqube
-          subPath: logs
-        - mountPath: /tmp
-          name: tmp-dir
-        {{- if .Values.caCerts.enabled }}
-        - mountPath: {{ .Values.sonarqubeFolder }}/certs
-          name: sonarqube
-          subPath: certs
-        {{- end }}
-        - mountPath: {{ .Values.sonarqubeFolder }}/extensions
-          name: sonarqube
-          subPath: extensions
-        {{- with .Values.persistence.mounts }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
     {{- end }}
     {{- if or (.Values.plugins.install) (.Values.plugins.useDefaultPluginsPackage) }}
     - name: install-plugins
@@ -255,9 +275,8 @@ spec:
       resources: {{- toYaml . | nindent 8 }}
       {{- end }}
       volumeMounts:
-        - mountPath: {{ .Values.sonarqubeFolder }}/extensions/plugins
+        - mountPath: {{ .Values.sonarqubeFolder }}
           name: sonarqube
-          subPath: extensions/plugins
         - name: install-plugins
           mountPath: /tmp/scripts/
         - name: sonar-config-dir
@@ -302,40 +321,7 @@ spec:
       env:
         {{- (include "sonarqube.combined_env" . | fromJsonArray) | toYaml | trim | nindent 8 }}
     {{- end }}
-    {{- if or (and .Values.persistence.enabled .Values.persistence.hostPath) (and .Values.persistence.host.nodeName .Values.persistence.host.path) }}
-    # avoid hostpath volume permission issue
-    - name: "change-permission"
-      resources: {{- toYaml .Values.resources | nindent 8 }}
-      image: "{{ template "initSysctl.image" . }}"
-      imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
-      command: [ "/bin/sh" ]
-      args: [ "-c", "chown -R 1000:1000 {{ .Values.sonarqubeFolder }}" ]
-      securityContext:
-        runAsUser: 0
-      volumeMounts:
-        - mountPath: {{ .Values.sonarqubeFolder }}
-          name: sonarqube
-        {{- if .Values.sonarSecretKey }}
-        - mountPath: {{ .Values.sonarqubeFolder }}/secret/
-          name: secret
-        {{- end }}
-        - mountPath: {{ .Values.sonarqubeFolder }}/temp
-          name: sonarqube
-          subPath: temp
-        - mountPath: {{ .Values.sonarqubeFolder }}/logs
-          name: sonarqube
-          subPath: logs
-        - mountPath: {{ .Values.sonarqubeFolder }}/data
-          name: sonarqube
-          subPath: data
-        - mountPath: {{ .Values.sonarqubeFolder }}/extensions
-          name: sonarqube
-          subPath: extensions
-        {{- if .Values.plugins.useDefaultPluginsPackage }}
-        - name: webapp
-          mountPath: {{ .Values.sonarqubeFolder }}/web
-        {{- end }}
-    {{- end  }}
+    
   containers:
     {{- with .Values.extraContainers }}
     {{- toYaml . | nindent 4 }}

@@ -6,16 +6,23 @@ metadata:
   labels: {{- include "sonarqube.labels" . | nindent 4 }}
 data:
   init_fs.sh: |-
+    ls -alh {{ .Values.sonarqubeFolder }}
+    mkdir -p {{ .Values.sonarqubeFolder }}/data
+    mkdir -p {{ .Values.sonarqubeFolder }}/temp
+    mkdir -p {{ .Values.sonarqubeFolder }}/logs
     chown -R {{ .Values.persistence.uid }}:{{ .Values.persistence.guid }} {{ .Values.sonarqubeFolder }}/data
     chown -R {{ .Values.persistence.uid }}:{{ .Values.persistence.guid }} {{ .Values.sonarqubeFolder }}/temp
     chown -R {{ .Values.persistence.uid }}:{{ .Values.persistence.guid }} {{ .Values.sonarqubeFolder }}/logs
-    {{- if or .Values.plugins.install (and .Values.jdbcOverwrite.oracleJdbcDriver .Values.jdbcOverwrite.oracleJdbcDriver.url) }}
+
+    mkdir -p {{ .Values.sonarqubeFolder }}/extensions/jdbc-driver/oracle
     chown -R {{ .Values.persistence.uid }}:{{ .Values.persistence.guid }} {{ .Values.sonarqubeFolder }}/extensions
-    {{- end }}
+
     {{- if .Values.caCerts.enabled }}
+    mkdir -p {{ .Values.sonarqubeFolder }}/certs
     chown -R {{ .Values.persistence.uid }}:{{ .Values.persistence.guid }} {{ .Values.sonarqubeFolder }}/certs
     {{- end }}
     {{- range .Values.persistence.mounts }}
     chown -R {{ $.Values.persistence.uid }}:{{ $.Values.persistence.guid }} {{ .mountPath }}
     {{- end }}
+    ls -alh {{ .Values.sonarqubeFolder }}
 {{- end }}

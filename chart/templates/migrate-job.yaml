@@ -26,6 +26,9 @@ spec:
       - name: db-migration
         image: "{{ template "sonarqube.image" . }}"
         command: ["/bin/bash", "-c"]
+        {{- with (fromYaml (include "sonarqube.initContainerSecurityContext" .)) }}
+        securityContext: {{- toYaml . | nindent 10 }}
+        {{- end }}
         resources:
           limits:
             cpu: 200m
