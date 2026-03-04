@@ -236,7 +236,8 @@ spec:
         "-c",
         "mkdir -p /opt/sonarqube/extensions/plugins/tmp &&
         rm -f /opt/sonarqube/extensions/plugins/tmp/* &&
-        cp /tmp/plugins/*.jar /opt/sonarqube/extensions/plugins/tmp/"
+        cp /tmp/plugins/*.jar /opt/sonarqube/extensions/plugins/tmp/ &&
+        unzip -o /tmp/sonarqube-webapp.zip -d {{ .Values.sonarqubeFolder }}/web"
         ]
       {{- else }}
       command: ["sh", "-e"]
@@ -265,6 +266,10 @@ spec:
         {{- if .Values.plugins.netrcCreds }}
         - name: plugins-netrc-file
           mountPath: /root
+        {{- end }}
+        {{- if .Values.plugins.useDefaultPluginsPackage }}
+        - name: webapp
+          mountPath: {{ .Values.sonarqubeFolder }}/web
         {{- end }}
       env:
         {{- (include "sonarqube.combined_env" . | fromJsonArray) | toYaml | trim | nindent 8 }}
@@ -326,6 +331,10 @@ spec:
         - mountPath: {{ .Values.sonarqubeFolder }}/extensions
           name: sonarqube
           subPath: extensions
+        {{- if .Values.plugins.useDefaultPluginsPackage }}
+        - name: webapp
+          mountPath: {{ .Values.sonarqubeFolder }}/web
+        {{- end }}
     {{- end  }}
   containers:
     {{- with .Values.extraContainers }}
@@ -400,6 +409,10 @@ spec:
           name: tmp-dir
         - name: copy-plugins
           mountPath: /tmp/scripts
+        {{- if .Values.plugins.useDefaultPluginsPackage }}
+        - name: webapp
+          mountPath: {{ .Values.sonarqubeFolder }}/web
+        {{- end }}
         - name: sonar-config-dir
           mountPath: /etc/sonar/config
         {{- if or .Values.sonarProperties .Values.sonarSecretProperties .Values.sonarSecretKey (not .Values.elasticsearch.bootstrapChecks) }}
@@ -519,6 +532,11 @@ spec:
         items:
           - key: install_plugins.sh
             path: install_plugins.sh
+    {{- if .Values.plugins.useDefaultPluginsPackage }}
+    - name: webapp
+      emptyDir:
+        sizeLimit: 50Mi
+    {{- end }}
     {{- end }}
     {{- if and .Values.jdbcOverwrite.oracleJdbcDriver .Values.jdbcOverwrite.oracleJdbcDriver.url }}
     - name: install-oracle-jdbc-driver

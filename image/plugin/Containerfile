@@ -1,8 +1,11 @@
 FROM build-harbor.alauda.cn/ops/alpine:3.21.5-alauda-202601301100
 
+# when install sonarqube-community-branch-plugin need update https://github.com/mc1arke/sonarqube-community-branch-plugin/tree/26.1.0?tab=readme-ov-file#manual-install
+ARG SONARQUBE_WEB_VERSION=26.1.0
 # Install CA certificates for TLS validation
-RUN apk add --no-cache ca-certificates wget
+RUN apk add --no-cache ca-certificates wget unzip
 
 ADD plugins.txt /tmp/plugins/
 WORKDIR /tmp/plugins
-RUN cat /tmp/plugins/plugins.txt | xargs wget
+RUN cat /tmp/plugins/plugins.txt | xargs wget && \
+    wget -O /tmp/sonarqube-webapp.zip https://github.com/mc1arke/sonarqube-community-branch-plugin/releases/download/${SONARQUBE_WEB_VERSION}/sonarqube-webapp.zip
