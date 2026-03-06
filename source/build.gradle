@@ -7,13 +7,13 @@ plugins {
   // Ordered alphabetically
   id 'com.github.hierynomus.license' version '0.16.1'
   id "com.github.hierynomus.license-report" version "0.16.1" apply false
-  id 'com.gradleup.shadow' version '8.3.6' apply false
+  id 'com.gradleup.shadow' version '8.3.10' apply false
   id 'com.google.protobuf' version '0.8.19' apply false
   id 'com.jfrog.artifactory' version '6.0.4'
   id "de.undercouch.download" version "5.6.0" apply false
   id 'io.spring.dependency-management' version '1.1.7'
   id "org.cyclonedx.bom" version "2.3.1" apply false
-  id 'org.sonarqube' version '7.2.2.6593'
+  id 'org.sonarqube' version '7.2.3.7755'
 }
 
 if (!JavaVersion.current().isCompatibleWith(VERSION_21)) {
@@ -239,10 +239,10 @@ subprojects {
   }
 
   ext {
-    protobufVersion = '4.33.2'
-    springSecurityVersion = '6.5.6'
+    protobufVersion = '4.33.5'
+    springSecurityVersion = '6.5.8'
     elasticSearchClientVersion = '7.17.29' // Old REST High Level Client (to be removed)
-    elasticSearchJavaClientVersion = '8.16.6' // New Java API Client
+    elasticSearchJavaClientVersion = '8.16.7' // New Java API Client
   }
 
   sonar {
@@ -369,11 +369,11 @@ subprojects {
 
       // https://mvnrepository.com/artifact/ch.qos.logback.access/common
       dependency('ch.qos.logback.access:common:2.0.3')
-      dependency('ch.qos.logback.access:logback-access-tomcat:2.0.6')
+      dependency('ch.qos.logback.access:logback-access-tomcat:2.0.12')
       dependency 'commons-codec:commons-codec:1.20.0'
       dependency 'commons-dbutils:commons-dbutils:1.8.1'
       dependency 'commons-io:commons-io:2.21.0'
-      imports { mavenBom 'com.fasterxml.jackson:jackson-bom:2.20.1' }
+      imports { mavenBom 'com.fasterxml.jackson:jackson-bom:2.20.2' }
       dependency 'com.eclipsesource.minimal-json:minimal-json:0.9.5'
       dependencySet(group: 'com.github.scribejava', version: '8.3.3') {
         entry 'scribejava-apis'
@@ -390,11 +390,11 @@ subprojects {
       dependency('com.googlecode.json-simple:json-simple:1.1.1') {
         exclude 'junit:junit'
       }
-      dependency 'io.github.hakky54:ayza:10.0.2'
+      dependency 'io.github.hakky54:ayza:10.0.3'
       dependency 'io.prometheus:simpleclient:0.16.0'
       dependency 'io.prometheus:simpleclient_common:0.16.0'
       dependency 'io.prometheus:simpleclient_servlet:0.16.0'
-      dependency 'io.swagger.parser.v3:swagger-parser:2.1.37'
+      dependency 'io.swagger.parser.v3:swagger-parser:2.1.38'
       dependency 'com.github.spotbugs:spotbugs-annotations:4.9.8'
       dependency 'com.google.code.gson:gson:2.13.2'
       dependency('com.google.guava:guava:33.5.0-jre') {
@@ -414,7 +414,7 @@ subprojects {
         exclude 'com.fasterxml.jackson.core:jackson-databind'
       }
       dependency 'com.microsoft.azure:msal4j:1.23.1'
-      dependency 'com.oracle.database.jdbc:ojdbc11:23.26.0.0.0'
+      dependency 'com.oracle.database.jdbc:ojdbc11:23.26.1.0.0'
       dependency 'org.aspectj:aspectjtools:1.9.25'
       dependencySet(group: 'com.squareup.okhttp3', version: '5.3.2') {
         entry 'okhttp'
@@ -432,8 +432,8 @@ subprojects {
         entry 'jjwt-impl'
         entry 'jjwt-jackson'
       }
-      dependency 'com.auth0:java-jwt:4.5.0'
-      dependency 'io.netty:netty-all:4.2.9.Final'
+      dependency 'com.auth0:java-jwt:4.5.1'
+      dependency 'io.netty:netty-all:4.2.10.Final'
       dependency 'jakarta.mail:jakarta.mail-api:2.1.5'
       dependency 'jakarta.annotation:jakarta.annotation-api:3.0.0'
       dependency 'jakarta.inject:jakarta.inject-api:2.0.1'
@@ -468,7 +468,7 @@ subprojects {
         entry 'log4j-api'
         entry 'log4j-to-slf4j'
       }
-      dependencySet(group: 'org.apache.tomcat.embed', version: '11.0.15') {
+      dependencySet(group: 'org.apache.tomcat.embed', version: '11.0.18') {
         entry 'tomcat-embed-core'
         entry('tomcat-embed-jasper') {
           exclude 'org.eclipse.jdt.core.compiler:ecj'
@@ -476,7 +476,7 @@ subprojects {
       }
       //transitive dependency of SVNKit, to be re-assessed when updating SVNKit
       dependency 'org.apache.sshd:sshd-core:2.16.0'
-      dependencySet(group: 'org.assertj', version: '3.27.6') {
+      dependencySet(group: 'org.assertj', version: '3.27.7') {
         entry 'assertj-core'
         entry 'assertj-guava'
       }
@@ -505,7 +505,7 @@ subprojects {
       dependency 'org.hamcrest:hamcrest:3.0'
       dependency 'org.jsoup:jsoup:1.21.2'
       // JUnit 5
-      imports { mavenBom 'org.junit:junit-bom:5.14.0' }
+      imports { mavenBom 'org.junit:junit-bom:5.14.3' }
       dependency 'org.junit-pioneer:junit-pioneer:2.3.0'
       dependencySet(group: 'org.mockito', version: '5.21.0') {
         entry 'mockito-core'
@@ -514,9 +514,9 @@ subprojects {
         }
       }
       dependency 'org.spdx:java-spdx-library:2.0.2'
-      dependency 'org.spdx:spdx-v3jsonld-store:1.0.1'
-      dependency 'org.spdx:spdx-jackson-store:2.0.3'
-      dependencySet(group: 'org.springframework', version: '6.2.12') {
+      dependency 'org.spdx:spdx-v3jsonld-store:1.0.2'
+      dependency 'org.spdx:spdx-jackson-store:2.0.4'
+      dependencySet(group: 'org.springframework', version: '6.2.16') {
         entry 'spring-test'
         entry('spring-context') {
           exclude 'commons-logging:commons-logging'
@@ -533,10 +533,10 @@ subprojects {
         entry 'log4j-over-slf4j'
         entry 'slf4j-api'
       }
-      dependency 'org.postgresql:postgresql:42.7.8'
+      dependency 'org.postgresql:postgresql:42.7.10'
       dependency 'org.reflections:reflections:0.10.2'
       dependency 'org.simpleframework:simple:5.1.6'
-      dependency 'org.sonarsource.git.blame:git-files-blame:2.0.1.17'
+      dependency 'org.sonarsource.git.blame:git-files-blame:2.0.2.54'
       dependencySet(group: 'org.sonarsource.orchestrator', version: '6.0.3.3907') {
         entry('sonar-orchestrator-junit4') {
           exclude 'com.fasterxml.jackson.dataformat:jackson-dataformat-xml'
@@ -552,7 +552,7 @@ subprojects {
       dependency 'com.sonarsource.fixsuggestions:ai-suggestions-shared:1.0.0.1775'
       dependency 'org.sonarsource.update-center:sonar-update-center-common:1.36.0.4317'
       dependency 'org.sonarsource.classloader:sonar-classloader:1.2.1.2095'
-      dependency 'org.springdoc:springdoc-openapi-starter-webmvc-api:2.8.13'
+      dependency 'org.springdoc:springdoc-openapi-starter-webmvc-api:2.8.16'
       dependencySet(group: 'com.icegreen', version: '2.1.8') {
         entry 'greenmail'
         entry 'greenmail-junit4'
