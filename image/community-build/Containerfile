@@ -56,7 +56,7 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*;
 
 # renovate: datasource=maven depName=commons-lang3 lookupName=org.apache.commons:commons-lang3
-ARG COMMONS_LANG3_VERSION=3.18.0
+ARG COMMONS_LANG3_VERSION=3.20.0
 RUN /tmp/replace-jar.sh "org.apache.commons" "commons-lang3" 3.9 $COMMONS_LANG3_VERSION ${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference/
 
 COPY --chown=root:root --chmod=555 image/community-build/entrypoint.sh ${SONARQUBE_HOME}/docker/
