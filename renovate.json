@@ -4,9 +4,7 @@
     "config:recommended",
     "customManagers:dockerfileVersions"
   ],
-  "baseBranches": [
-    "alauda-2025.1.0"
-  ],
+  "baseBranches": ["/^alauda-.*/"],
   "enabledManagers": ["dockerfile", "regex", "maven", "gradle", "gradle-wrapper"],
   "ignorePaths": [
     "**/testdata/**",
