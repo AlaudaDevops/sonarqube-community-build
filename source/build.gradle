@@ -341,7 +341,7 @@ subprojects {
       dependency 'org.sonarsource.javascript:sonar-javascript-plugin:11.7.1.36988'
       dependency 'org.sonarsource.php:sonar-php-plugin:3.53.0.15220'
       dependency 'org.sonarsource.plugins.cayc:sonar-cayc-plugin:2.6.0.3665'
-      dependency 'org.sonarsource.python:sonar-python-plugin:5.14.2.29072'
+      dependency 'org.sonarsource.python:sonar-python-plugin:5.19.0.32098'
       dependency 'org.sonarsource.rust:sonar-rust-plugin:1.2.0.1339'
       dependency 'com.sonarsource.python:sonar-python-enterprise-plugin:5.14.2.29072'
       dependency 'org.sonarsource.kotlin:sonar-kotlin-plugin:3.3.1.7792'
@@ -350,7 +350,7 @@ subprojects {
       dependency 'org.sonarsource.xml:sonar-xml-plugin:2.14.2.7437'
       dependency 'org.sonarsource.iac:sonar-iac-plugin:2.4.0.18716'
       dependency 'com.sonarsource.iac:sonar-iac-enterprise-plugin:2.4.0.18716'
-      dependency 'org.sonarsource.text:sonar-text-plugin:2.36.0.10152'
+      dependency 'org.sonarsource.text:sonar-text-plugin:2.42.0.10784'
       dependency 'com.sonarsource.text:sonar-text-developer-plugin:2.36.0.10152'
       dependency 'com.sonarsource.text:sonar-text-enterprise-plugin:2.36.0.10152'
       dependency 'com.sonarsource.jcl:sonar-jcl-plugin:1.4.2.2894'
@@ -373,7 +373,7 @@ subprojects {
       dependency 'commons-codec:commons-codec:1.20.0'
       dependency 'commons-dbutils:commons-dbutils:1.8.1'
       dependency 'commons-io:commons-io:2.21.0'
-      imports { mavenBom 'com.fasterxml.jackson:jackson-bom:2.20.1' }
+      imports { mavenBom 'com.fasterxml.jackson:jackson-bom:2.21.2' }
       dependency 'com.eclipsesource.minimal-json:minimal-json:0.9.5'
       dependencySet(group: 'com.github.scribejava', version: '8.3.3') {
         entry 'scribejava-apis'
@@ -410,7 +410,7 @@ subprojects {
         entry 'hazelcast'
       }
       // Documentation must be updated if mssql-jdbc is updated: https://github.com/SonarSource/sonarqube/commit/03e4773ebf6cba854cdcf57a600095f65f4f53e7
-      dependency('com.microsoft.sqlserver:mssql-jdbc:12.10.2.jre11') {
+      dependency('com.microsoft.sqlserver:mssql-jdbc:13.4.0.jre11') {
         exclude 'com.fasterxml.jackson.core:jackson-databind'
       }
       dependency 'com.microsoft.azure:msal4j:1.23.1'

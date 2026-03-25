@@ -31,10 +31,10 @@ RUN set -eux; \
         gnupg \
         unzip \
         libgnutls30t64=3.8.3-1.1ubuntu3.5 \
-        libssh-4=0.10.6-2ubuntu0.3;
+        libssh-4=0.10.6-2ubuntu0.4;
 
 COPY --chown=sonarsource:sonarsource source/sonar-application/build/distributions/sonar-application-${SONARQUBE_VERSION}.zip /home/sonarsource/
-COPY --chown=sonarsource:sonarsource image/community-build/replace-jar.sh /tmp/replace-jar.sh
+COPY --chown=sonarsource:sonarsource --chmod=555 image/community-build/jar-tools.sh /tmp/jar-tools.sh
 
 RUN set -eux; \
     echo "networkaddress.cache.ttl=5" >> "${JAVA_HOME}/conf/security/java.security"; \
@@ -57,7 +57,16 @@ RUN set -eux; \
 
 # renovate: datasource=maven depName=commons-lang3 lookupName=org.apache.commons:commons-lang3
 ARG COMMONS_LANG3_VERSION=3.20.0
-RUN /tmp/replace-jar.sh "org.apache.commons" "commons-lang3" 3.9 $COMMONS_LANG3_VERSION ${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference/
+# renovate: datasource=maven depName=jackson-core lookupName=com.fasterxml.jackson.core:jackson-core
+ARG JACKSON_CORE_FIXED_VERSION=2.21.2
+RUN set -eux; \
+    /tmp/jar-tools.sh replace "org.apache.commons" "commons-lang3" 3.9 "$COMMONS_LANG3_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference/"; \
+    /tmp/jar-tools.sh replace "com.fasterxml.jackson.core" "jackson-core" 2.15.0 2.18.6 "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference/"; \
+    /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "${JACKSON_CORE_FIXED_VERSION}" "${SONARQUBE_HOME}/lib/extensions/sonar-python-plugin-5.19.0.32098.jar"; \
+    /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "${JACKSON_CORE_FIXED_VERSION}" "${SONARQUBE_HOME}/elasticsearch/bin/elasticsearch-sql-cli-8.19.13.jar"; \
+    /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "${JACKSON_CORE_FIXED_VERSION}" "${SONARQUBE_HOME}/elasticsearch/lib/elasticsearch-x-content-8.19.13.jar" "IMPL-JARS/x-content/jackson-core-2.17.2.jar"; \
+    /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "${JACKSON_CORE_FIXED_VERSION}" "${SONARQUBE_HOME}/elasticsearch/lib/tools/plugin-cli/elasticsearch-x-content-8.19.13.jar" "IMPL-JARS/x-content/jackson-core-2.17.2.jar"; \
+    /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "${JACKSON_CORE_FIXED_VERSION}" "${SONARQUBE_HOME}/lib/sonar-application-${SONARQUBE_VERSION}.jar"
 
 COPY --chown=root:root --chmod=555 image/community-build/entrypoint.sh ${SONARQUBE_HOME}/docker/
 
