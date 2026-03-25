@@ -280,6 +280,7 @@ livenessProbe:
       - sh
       - -c
       - |
+        SONAR_WEB_SYSTEMPASSCODE=$(cat /run/secrets/monitoring-passcode/SONAR_WEB_SYSTEMPASSCODE 2>/dev/null)
         wget --no-proxy --quiet -O /dev/null --timeout={{ .Values.livenessProbe.timeoutSeconds }} --header="X-Sonar-Passcode: $SONAR_WEB_SYSTEMPASSCODE" "http://localhost:{{ .Values.service.internalPort }}{{ .Values.livenessProbe.sonarWebContext | default (include "sonarqube.webcontext" .) }}api/system/liveness"
   initialDelaySeconds: 60
   periodSeconds: 30

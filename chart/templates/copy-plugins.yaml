@@ -48,6 +48,11 @@ data:
         export SONAR_JDBC_PASSWORD=$(cat /run/postgresql/secret/SONAR_JDBC_PASSWORD)
       fi
 
+      # Set monitoring passcode from mounted secret volume
+      if [ -f /run/secrets/monitoring-passcode/SONAR_WEB_SYSTEMPASSCODE ]; then
+        export SONAR_WEB_SYSTEMPASSCODE=$(cat /run/secrets/monitoring-passcode/SONAR_WEB_SYSTEMPASSCODE)
+      fi
+
       {{- if .Values.plugins.deleteDefaultPlugins }}
       rm -f /opt/sonarqube/extensions/plugins/*.jar
       {{- end }}
