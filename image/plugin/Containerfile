@@ -3,9 +3,17 @@ FROM build-harbor.alauda.cn/ops/alpine:3.21.5-alauda-202601301100
 # when install sonarqube-community-branch-plugin need update https://github.com/mc1arke/sonarqube-community-branch-plugin/tree/26.1.0?tab=readme-ov-file#manual-install
 ARG SONARQUBE_WEB_VERSION=26.1.0
 # Install CA certificates for TLS validation
-RUN apk add --no-cache ca-certificates wget unzip
+RUN apk add --no-cache ca-certificates wget unzip zip python3
 
-ADD plugins.txt /tmp/plugins/
+ADD image/plugin/plugins.txt /tmp/plugins/
 WORKDIR /tmp/plugins
 RUN cat /tmp/plugins/plugins.txt | xargs wget && \
     wget -O /tmp/sonarqube-webapp.zip https://github.com/mc1arke/sonarqube-community-branch-plugin/releases/download/${SONARQUBE_WEB_VERSION}/sonarqube-webapp.zip
+
+# CVE-2025-13465: patch lodash inside sonarqube-webapp.zip
+COPY --chmod=555 image/community-build/patch-lodash-cve-2025-13465.py /tmp/patch-lodash-cve-2025-13465.py
+RUN mkdir -p /tmp/webapp-patched && \
+    unzip -q /tmp/sonarqube-webapp.zip -d /tmp/webapp-patched && \
+    python3 /tmp/patch-lodash-cve-2025-13465.py /tmp/webapp-patched/js && \
+    cd /tmp/webapp-patched && zip -qr /tmp/sonarqube-webapp.zip . && \
+    rm -rf /tmp/webapp-patched

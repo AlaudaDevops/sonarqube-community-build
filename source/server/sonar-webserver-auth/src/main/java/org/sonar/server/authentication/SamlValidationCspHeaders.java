@@ -33,17 +33,25 @@ public class SamlValidationCspHeaders {
   public static String addCspHeadersWithNonceToResponse(HttpResponse httpResponse) {
     final String nonce = getNonce();
 
-    List<String> cspPolicies = List.of(
-      "default-src 'self'",
-      "base-uri 'none'",
-      "connect-src 'self' http: https:",
-      "font-src 'self' data:;" +
-      "img-src * data: blob:",
-      "object-src 'none'",
-      "script-src 'nonce-" + nonce + "'",
-      "style-src 'self' 'unsafe-inline'",
-      "worker-src 'none'");
-    String policies = String.join("; ", cspPolicies).trim();
+    String fullPolicy = System.getenv("SONAR_WEB_CSP_SAML_POLICY");
+    String policies;
+    if (fullPolicy != null && !fullPolicy.isBlank()) {
+      // Support {nonce} placeholder so callers can embed the nonce in a custom policy
+      policies = fullPolicy.trim().replace("{nonce}", nonce);
+    } else {
+      policies = String.join("; ",
+        "default-src 'self'",
+        "base-uri 'none'",
+        "connect-src 'self'",
+        "font-src 'self' data:",
+        "form-action 'self'",
+        "frame-ancestors 'none'",
+        "img-src 'self' data: blob:",
+        "object-src 'none'",
+        "script-src 'nonce-" + nonce + "'",
+        "style-src 'self' 'unsafe-inline'",
+        "worker-src 'none'");
+    }
 
     List<String> cspHeaders = List.of("Content-Security-Policy", "X-Content-Security-Policy", "X-WebKit-CSP");
     cspHeaders.forEach(header -> httpResponse.setHeader(header, policies));

@@ -291,7 +291,7 @@ spec:
         - name: containerfile
           value: image/plugin/Containerfile
         - name: context
-          value: image/plugin
+          value: .
     - name: image-scan
       timeout: 60m
       retries: 2

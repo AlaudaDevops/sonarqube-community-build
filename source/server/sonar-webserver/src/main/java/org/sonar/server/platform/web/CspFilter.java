@@ -19,13 +19,6 @@
  */
 package org.sonar.server.platform.web;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.FilterConfig;
@@ -33,6 +26,13 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
 
 public class CspFilter implements Filter {
   private final List<String> cspHeaders = new ArrayList<>();
@@ -42,19 +42,30 @@ public class CspFilter implements Filter {
   public void init(FilterConfig filterConfig) throws ServletException {
     cspHeaders.add("Content-Security-Policy");
 
-    List<String> cspPolicies = new ArrayList<>();
-    cspPolicies.add("default-src 'self'");
-    cspPolicies.add("base-uri 'none'");
-    cspPolicies.add("connect-src 'self' http: https:");
-    cspPolicies.add("font-src 'self' data:");
-    cspPolicies.add("frame-src");
-    cspPolicies.add("img-src * data: blob:");
-    cspPolicies.add("object-src 'none'");
+    // If a full CSP policy string is provided via env var, use it directly
+    String fullPolicy = System.getenv("SONAR_WEB_CSP_POLICY");
+    if (fullPolicy != null && !fullPolicy.isBlank()) {
+      this.policies = fullPolicy.trim();
+      return;
+    }
+
     // the hash below corresponds to the window.__assetsPath script in index.html
-    cspPolicies.add("script-src 'self' " + getAssetsPathScriptCSPHash(filterConfig.getServletContext().getContextPath()));
-    cspPolicies.add("style-src 'self' 'unsafe-inline'");
-    cspPolicies.add("worker-src 'self'");
-    this.policies = String.join("; ", cspPolicies).trim();
+    String defaultScriptSrc = "'self' " + getAssetsPathScriptCSPHash(filterConfig.getServletContext().getContextPath());
+
+    this.policies = String.join("; ",
+      "default-src 'self'",
+      "base-uri 'none'",
+      "connect-src 'self'",
+      "font-src 'self' data:",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+      "frame-src 'none'",
+      "img-src 'self' data: blob:",
+      "object-src 'none'",
+      "script-src " + defaultScriptSrc,
+      "style-src 'self' 'unsafe-inline'",
+      "worker-src 'self'"
+    );
   }
 
   @Override

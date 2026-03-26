@@ -70,6 +70,13 @@ RUN set -eux; \
 
 COPY --chown=root:root --chmod=555 image/community-build/entrypoint.sh ${SONARQUBE_HOME}/docker/
 
+# CVE-2025-13465: patch lodash baseUnset to prevent prototype pollution via _.unset / _.omit
+COPY --chown=root:root --chmod=555 image/community-build/patch-lodash-cve-2025-13465.py /tmp/patch-lodash-cve-2025-13465.py
+RUN apt-get update && apt-get install -y --no-install-recommends python3-minimal && \
+    python3 /tmp/patch-lodash-cve-2025-13465.py && \
+    apt-get remove -y python3-minimal && \
+    rm -rf /var/lib/apt/lists/*
+
 # remove sniff tools
 RUN set +e; \
   ls -d /usr/bin/* | grep -E "cpp|readelf|gcc|nc|netcat" | xargs rm; \
