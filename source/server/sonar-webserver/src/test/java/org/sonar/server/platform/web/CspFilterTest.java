@@ -40,10 +40,12 @@ public class CspFilterTest {
   private static final String TEST_CONTEXT = "/sonarqube";
   private static final String EXPECTED = "default-src 'self'; " +
     "base-uri 'none'; " +
-    "connect-src 'self' http: https:; " +
+    "connect-src 'self'; " +
     "font-src 'self' data:; " +
-    "frame-src; " +
-    "img-src * data: blob:; " +
+    "form-action 'self'; " +
+    "frame-ancestors 'none'; " +
+    "frame-src 'none'; " +
+    "img-src 'self' data: blob:; " +
     "object-src 'none'; " +
     "script-src 'self' 'sha256-hK8SVWFNHY0UhP61DBzX/3fvT74EI8u6/jRQvUKeZoU='; " +
     "style-src 'self' 'unsafe-inline'; " +

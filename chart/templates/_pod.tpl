@@ -351,16 +351,6 @@ spec:
         - name: IS_HELM_OPENSHIFT_ENABLED
           value: "true"
         {{- end }}
-        - name: SONAR_WEB_SYSTEMPASSCODE
-          valueFrom:
-            secretKeyRef:
-            {{- if and .Values.monitoringPasscodeSecretName .Values.monitoringPasscodeSecretKey }}
-              name: {{ .Values.monitoringPasscodeSecretName }}
-              key: {{ .Values.monitoringPasscodeSecretKey }}
-            {{- else }}
-              name: {{ include "sonarqube.fullname" . }}-monitoring-passcode
-              key: SONAR_WEB_SYSTEMPASSCODE
-            {{- end }}
         {{- (include "sonarqube.combined_env" . | fromJsonArray) | toYaml | trim | nindent 8 }}
       livenessProbe:
         {{- tpl (omit .Values.livenessProbe "sonarWebContext" | toYaml) . | nindent 8 }}
@@ -390,6 +380,9 @@ spec:
           subPath: logs
         - name: jdbc-secret-volume
           mountPath: /run/postgresql/secret
+          readOnly: true
+        - name: monitoring-passcode-volume
+          mountPath: /run/secrets/monitoring-passcode
           readOnly: true
         - mountPath: /tmp
           name: tmp-dir
@@ -583,6 +576,19 @@ spec:
               items:
                 - key: {{ template "jdbc.secretPasswordKey" . }}
                   path: SONAR_JDBC_PASSWORD
+    - name: monitoring-passcode-volume
+      secret:
+        {{- if and .Values.monitoringPasscodeSecretName .Values.monitoringPasscodeSecretKey }}
+        secretName: {{ .Values.monitoringPasscodeSecretName }}
+        items:
+          - key: {{ .Values.monitoringPasscodeSecretKey }}
+            path: SONAR_WEB_SYSTEMPASSCODE
+        {{- else }}
+        secretName: {{ include "sonarqube.fullname" . }}-monitoring-passcode
+        items:
+          - key: SONAR_WEB_SYSTEMPASSCODE
+            path: SONAR_WEB_SYSTEMPASSCODE
+        {{- end }}
     - name: sonar-config-dir
       emptyDir:
         medium: Memory
