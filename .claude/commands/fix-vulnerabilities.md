@@ -15,6 +15,7 @@ The repeatable steps below are scripted. **Do not re-implement them inline** —
 | [`hack/sync-trivyignore.sh`](hack/sync-trivyignore.sh) | Pull approved CVE exemptions from Thanos and regenerate `.trivyignore`. |
 | [`hack/scan-image.sh`](hack/scan-image.sh) | Wrap `trivy image` with the project's standard flags + `.trivyignore`. |
 | [`hack/build-images.sh`](hack/build-images.sh) | Build the SonarQube source artifact and the two container images locally. |
+| [`hack/local-smoke-test.sh`](hack/local-smoke-test.sh) | Boot the rebuilt image against a throwaway Postgres, wait for `/api/system/status=UP`, scan logs for known-fatal patterns, then run a full Trivy scan and assert the vulnerability budget is met. |
 | [`image/community-build/jar-tools.sh`](image/community-build/jar-tools.sh) | `replace` / `overlay` / `overlay-from-maven` subcommands used inside the Containerfile. |
 | [`image/community-build/patch-lodash-cve-2025-13465.py`](image/community-build/patch-lodash-cve-2025-13465.py) | In-place lodash patcher. |
 
@@ -153,15 +154,36 @@ Trivy auto-loads `.trivyignore` from the working directory, so run the script fr
 
 If anything is still flagged: route it back through Step 3's table. Don't cheat by silencing real CVEs in `.trivyignore` — submit an exemption to Thanos and let `sync-trivyignore.sh` regenerate the file.
 
-## Step 7: Smoke test (recommended before PR)
+## Step 7: Smoke test (required before PR)
 
-JAR replacements can break OSGi-style bundle resolution; failures usually surface as `ClassNotFoundException` / `NoSuchMethodError` in `/opt/sonarqube/logs/`.
+This step is non-negotiable. JAR replacements routinely break Elasticsearch / Web / CE startup with `NoSuchMethodError`, `NoClassDefFoundError`, or `IllegalArgumentException: Invalid Configuration class` (e.g. when only `log4j-core` is bumped while `log4j-api` / `log4j-slf4j2-impl` stay on the old version). Trivy alone will *not* catch these regressions — only running the image will.
+
+`hack/local-smoke-test.sh` boots SonarQube against a throwaway Postgres, polls `/api/system/status` until `UP`, scans the logs for the known-fatal patterns above, **then re-runs `hack/scan-image.sh` against both images and asserts the vulnerability budget is met**. The default budget is `0` for every severity.
 
 ```bash
-docker run --rm -p 9000:9000 sonarqube-main:local-fix &
-sleep 90  # give CE/ES time to settle
-curl -fsS http://localhost:9000/api/system/status | jq .
+./hack/local-smoke-test.sh \
+    --main-image    sonarqube-main:local-fix \
+    --plugin-image  sonarqube-plugins:local-fix \
+    --max-vulns     0 \
+    --timeout       420
 ```
+
+Useful flags:
+
+- `--max-severity HIGH,CRITICAL` — only count those severities towards the budget (matches the default Tekton gate).
+- `--keep` — leave the Postgres + SonarQube containers running so you can poke around (`docker logs sonar-smoke` / `psql ...`). Run `docker rm -f sonar-smoke sonar-smoke-pg && docker network rm sonar-smoke-net` when you're done.
+- `PLATFORM=linux/amd64 ./hack/local-smoke-test.sh ...` — required on Apple Silicon. The public Elasticsearch tarball fetched by the source build only ships x86_64 native libs, so you must `docker buildx build --platform linux/amd64 ...` first and then ask the smoke script to start the container under Rosetta.
+
+Failure modes the smoke script catches that Trivy misses:
+
+| Symptom in logs | Most likely cause |
+|---|---|
+| `NoSuchMethodError: ...LoaderUtil.newCheckedInstanceOfProperty` | log4j-core was upgraded but log4j-api / log4j-slf4j2-impl were left behind. |
+| `NoClassDefFoundError` referencing a `com.fasterxml.jackson.*` class | Plugin / fat-jar overlay removed classes the host expected. |
+| `UnsatisfiedLinkError: ...elasticsearch/lib/platform/linux-aarch64/...` | Wrong architecture — rebuild with the right `--platform`. |
+| `Process[Web Server] is stopped` immediately after `Process[es] is up` plus a `JdbcSQLSyntaxErrorException` | The script was invoked against H2 — switch to Postgres (the script does so by default). |
+
+Do not move on to Step 8 until the smoke test ends with `==> PASS` AND the Trivy budget assertion passes. If either fails, route the offender back through Step 3.
 
 ## Step 8: Commit and PR
 
