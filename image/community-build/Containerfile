@@ -104,6 +104,11 @@ RUN set -eux; \
     /tmp/jar-tools.sh replace "io.netty" "netty-codec-http2" 4.1.130.Final "$NETTY_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference"; \
     /tmp/jar-tools.sh replace "com.sun.mail" "jakarta.mail" 1.6.3 "$JAKARTA_MAIL_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-security"; \
     /tmp/jar-tools.sh replace "org.apache.logging.log4j" "log4j-1.2-api" 2.19.0 "$LOG4J_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-core"; \
+    # Keep the rest of the log4j family aligned with log4j-core ($LOG4J_VERSION) — \
+    # the new log4j-core requires API methods added after 2.19.0, otherwise ES boot \
+    # fails with NoSuchMethodError on LoaderUtil.newCheckedInstanceOfProperty. \
+    /tmp/jar-tools.sh replace "org.apache.logging.log4j" "log4j-api" 2.19.0 "$LOG4J_VERSION" "${SONARQUBE_HOME}/elasticsearch/lib"; \
+    /tmp/jar-tools.sh replace "org.apache.logging.log4j" "log4j-slf4j2-impl" 2.19.0 "$LOG4J_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-core"; \
     /tmp/jar-tools.sh replace "org.bouncycastle" "bcpkix-jdk18on" 1.79 "$BOUNCYCASTLE_VERSION" "${SONARQUBE_HOME}/elasticsearch/lib/tools/security-cli"; \
     /tmp/jar-tools.sh replace "org.bouncycastle" "bcprov-jdk18on" 1.79 "$BOUNCYCASTLE_VERSION" "${SONARQUBE_HOME}/elasticsearch/lib/tools/security-cli"; \
     # elasticsearch-log4j-${esVer}.jar is just log4j-core renamed; replace contents with the fixed log4j-core (CVE-2025-68161, CVE-2026-34477, CVE-2026-34480). \
