@@ -48,7 +48,14 @@ EOF
   esac
 done
 
+# shellcheck disable=SC1091
+[ -f "$REPO_ROOT/.env" ] && source "$REPO_ROOT/.env"
+
 if [ "${#IMAGES[@]}" -eq 0 ]; then
+  if [ -z "${HARBOR_REGISTRY_HOST:-}" ]; then
+    echo "ERROR: --image not given and HARBOR_REGISTRY_HOST is unset (see .env.example)" >&2
+    exit 1
+  fi
   if ! command -v yq > /dev/null; then
     echo "ERROR: --image not given and yq missing — cannot parse chart/values.yaml" >&2
     exit 1
@@ -59,8 +66,8 @@ if [ "${#IMAGES[@]}" -eq 0 ]; then
     exit 1
   fi
   IMAGES=(
-    "build-harbor.alauda.cn/devops/sonarqube:${TAG}"
-    "build-harbor.alauda.cn/devops/sonarqube-plugins:${TAG}"
+    "${HARBOR_REGISTRY_HOST}/devops/sonarqube:${TAG}"
+    "${HARBOR_REGISTRY_HOST}/devops/sonarqube-plugins:${TAG}"
   )
 fi
 

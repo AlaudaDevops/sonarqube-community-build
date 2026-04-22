@@ -44,14 +44,14 @@ git checkout -b fix/image-vulnerabilities upstream/alauda-2026.1.0
 
 ## Step 2: Scan the current production images
 
-Image tags live in [chart/values.yaml](chart/values.yaml). The scanner script will pull the active tags itself when no `--image` flag is given:
+Image tags live in [chart/values.yaml](chart/values.yaml). With `HARBOR_REGISTRY_HOST` set in `.env`, the scanner picks up the active tags itself when no `--image` flag is given:
 
 ```bash
 ./hack/scan-image.sh --summary-only                                    # quick header counts
 ./hack/scan-image.sh --format json --out /tmp/main.json \
-    --image build-harbor.alauda.cn/devops/sonarqube:$(yq '.global.images.app.tag' chart/values.yaml)
+    --image "${HARBOR_REGISTRY_HOST}/devops/sonarqube:$(yq '.global.images.app.tag' chart/values.yaml)"
 ./hack/scan-image.sh --format json --out /tmp/plugins.json \
-    --image build-harbor.alauda.cn/devops/sonarqube-plugins:$(yq '.global.images.app.tag' chart/values.yaml)
+    --image "${HARBOR_REGISTRY_HOST}/devops/sonarqube-plugins:$(yq '.global.images.app.tag' chart/values.yaml)"
 ```
 
 Pretty-print to drive Step 3:
@@ -62,7 +62,7 @@ jq -r '.Results[]?.Vulnerabilities[]? |
   /tmp/main.json | sort | column -t -s $'\t'
 ```
 
-If `build-harbor.alauda.cn` is unreachable, fall back to the mirror `registry.alauda.cn:60070` (see `HARBOR_REGISTRY_HOST` in `.env.example`).
+If the primary registry is unreachable, point `HARBOR_REGISTRY_HOST` to the internal mirror you have access to.
 
 ## Step 3: Categorize each CVE and pick a strategy
 
@@ -78,8 +78,8 @@ Use this decision table **in priority order** — always pick the earliest optio
 | Bundled ES — entire jar is a renamed upstream artifact (`elasticsearch-log4j-X.jar` is just `log4j-core` renamed) | Direct `curl -fsSL -o $TARGET <maven_url>` | Same Containerfile, after the `jar-tools.sh` calls. |
 | Bundled ES — fat-jar agent that shades everything (`elastic-apm-agent-java8-X.jar`) | Direct `curl` overwrite with the latest patched agent jar | Same Containerfile. |
 | Bundled SonarQube/SonarSource plugin in `lib/extensions/sonar-X-plugin-Y.jar` | First, check if a newer plugin release ships the fix (download the candidate jar and inspect its `META-INF/maven/.../jackson-core/pom.properties`); if yes, bump the dep version in `source/build.gradle`. If not, `overlay-from-maven` on the plugin jar. | [source/build.gradle](source/build.gradle) for the bump, or Containerfile for overlay. |
-| 3rd-party plugin we already fork (e.g. `sonarqube-community-branch-plugin`) | Switch the download URL in [image/plugin/plugins.txt](image/plugin/plugins.txt) to the AlaudaDevops fork build published in `build-nexus.alauda.cn`. | Search via Nexus REST: `GET https://build-nexus.alauda.cn/service/rest/v1/search?repository=alauda-maven&name=<artifact>` to find the published path. |
-| 3rd-party plugin with no upstream fix and no existing fork | Fork to `AlaudaDevops/<repo>`, branch `alauda-<version>`, bump the offending dep, push and let the existing Tekton pipeline (e.g. `.tekton/build.yaml` in the fork) publish the patched jar to `build-nexus`. Then update `plugins.txt` as above. Commit footer must include `Upstream-PR:` and `Cherry-picked-from:` if applicable. | New AlaudaDevops fork. |
+| 3rd-party plugin we already fork (e.g. `sonarqube-community-branch-plugin`) | Switch the download URL in [image/plugin/plugins.txt](image/plugin/plugins.txt) to the AlaudaDevops fork build published in the internal Maven repo (host configured via `${NEXUS_HOST}` in your environment). | Search via Nexus REST: `GET https://${NEXUS_HOST}/service/rest/v1/search?repository=<repo>&name=<artifact>` to find the published path. |
+| 3rd-party plugin with no upstream fix and no existing fork | Fork to `AlaudaDevops/<repo>`, branch `alauda-<version>`, bump the offending dep, push and let the existing Tekton pipeline (e.g. `.tekton/build.yaml` in the fork) publish the patched jar to the internal Maven repo. Then update `plugins.txt` as above. Commit footer must include `Upstream-PR:` and `Cherry-picked-from:` if applicable. | New AlaudaDevops fork. |
 | No fix exists anywhere (latest upstream still vulnerable, or Trivy false positive on version parsing) | Submit an exemption to Thanos and re-run `./hack/sync-trivyignore.sh` — never edit `.trivyignore` by hand. | Thanos. |
 
 ### Known false positives / patterns
@@ -195,10 +195,10 @@ If upstream `alauda-2026.1.0` advances while the PR is open, prefer `git reset -
 | [image/community-build/jar-tools.sh](image/community-build/jar-tools.sh) | `replace` / `overlay` / `overlay-from-maven` subcommands. Reuse — do not re-invent. |
 | [image/community-build/patch-lodash-cve-2025-13465.py](image/community-build/patch-lodash-cve-2025-13465.py) | In-place lodash patcher. |
 | [image/plugin/Containerfile](image/plugin/Containerfile) | Plugin image: `apk upgrade` + downloads jars listed in `plugins.txt`. |
-| [image/plugin/plugins.txt](image/plugin/plugins.txt) | Plugin download URLs. Switch to `build-nexus.alauda.cn` for AlaudaDevops fork builds. |
+| [image/plugin/plugins.txt](image/plugin/plugins.txt) | Plugin download URLs. Switch to the internal Nexus (`${NEXUS_HOST}`) for AlaudaDevops fork builds. |
 | [source/build.gradle](source/build.gradle) | Top-level dependency BOM: `jackson-bom`, `mssql-jdbc`, `sonar-*-plugin`, `com.sun.mail:jakarta.mail`. |
 | [source/gradle.properties](source/gradle.properties) | `elasticSearchServerVersion` lives here. |
 | [source/sonar-application/build.gradle](source/sonar-application/build.gradle) | ES tarball repackaging — exclude lists for unwanted ES binaries. |
 | [.trivyignore](.trivyignore) | Documented residuals only — synced from Thanos via `hack/sync-trivyignore.sh`. |
 | [.tekton/pipeline/sonar-image-build.yaml](.tekton/pipeline/sonar-image-build.yaml) | The pipeline that actually scans on PR (Trivy task, gate config). |
-| [.env.example](.env.example) | Template for `.env`; documents `THANOS_API_HOST`, `THANOS_PLUGIN`, `THANOS_BRANCH`. |
+| [.env.example](.env.example) | Template for `.env`; documents `THANOS_API_HOST`, `THANOS_PLUGIN`, `THANOS_BRANCH`, `HARBOR_REGISTRY_HOST`. |

@@ -18,10 +18,12 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 TRIVYIGNORE="$REPO_ROOT/.trivyignore"
 
-# Defaults — can be overridden by .env / CLI.
-PLUGIN_DEFAULT="sonarqube-ce-operator"
-BRANCH_DEFAULT="$(git -C "$REPO_ROOT" symbolic-ref --short HEAD 2>/dev/null || echo alauda-2026.1.0)"
-API_HOST_DEFAULT="thanos.alaudatech.net"
+# Resolution order:
+#   1. CLI flag
+#   2. environment variable (loaded from .env if present)
+#   3. (BRANCH only) the current git branch
+# THANOS_API_HOST and THANOS_PLUGIN have no built-in default; set them in .env
+# (see .env.example) or via CLI.
 
 PLUGIN=""
 BRANCH=""
@@ -38,12 +40,12 @@ while [[ $# -gt 0 ]]; do
     --api-host) API_HOST="$2"; shift 2 ;;
     --dry-run)  DRY_RUN=true; shift ;;
     -h|--help)
-      cat <<EOF
-Usage: $0 [--plugin PLUGIN] [--branch BRANCH] [--api-host HOST] [--dry-run]
+      cat <<'EOF'
+Usage: sync-trivyignore.sh [--plugin PLUGIN] [--branch BRANCH] [--api-host HOST] [--dry-run]
 
-  --plugin PLUGIN   Thanos plugin name (default: \$THANOS_PLUGIN or '$PLUGIN_DEFAULT')
-  --branch BRANCH   Thanos branch       (default: current git branch '$BRANCH_DEFAULT')
-  --api-host HOST   Thanos API host     (default: \$THANOS_API_HOST or '$API_HOST_DEFAULT')
+  --plugin PLUGIN   Thanos plugin name   (default: $THANOS_PLUGIN from .env)
+  --branch BRANCH   Thanos branch        (default: $THANOS_BRANCH from .env, else current git branch)
+  --api-host HOST   Thanos API host      (default: $THANOS_API_HOST from .env)
   --dry-run         Print the rendered .trivyignore to stdout instead of writing it
 EOF
       exit 0
@@ -52,9 +54,22 @@ EOF
   esac
 done
 
-PLUGIN="${PLUGIN:-${THANOS_PLUGIN:-$PLUGIN_DEFAULT}}"
-BRANCH="${BRANCH:-${THANOS_BRANCH:-$BRANCH_DEFAULT}}"
-API_HOST="${API_HOST:-${THANOS_API_HOST:-$API_HOST_DEFAULT}}"
+PLUGIN="${PLUGIN:-${THANOS_PLUGIN:-}}"
+BRANCH="${BRANCH:-${THANOS_BRANCH:-$(git -C "$REPO_ROOT" symbolic-ref --short HEAD 2>/dev/null || true)}}"
+API_HOST="${API_HOST:-${THANOS_API_HOST:-}}"
+
+if [ -z "$API_HOST" ]; then
+  echo "ERROR: Thanos API host not set. Define THANOS_API_HOST in .env (see .env.example) or pass --api-host" >&2
+  exit 1
+fi
+if [ -z "$PLUGIN" ]; then
+  echo "ERROR: Thanos plugin name not set. Define THANOS_PLUGIN in .env (see .env.example) or pass --plugin" >&2
+  exit 1
+fi
+if [ -z "$BRANCH" ]; then
+  echo "ERROR: Thanos branch not resolvable. Define THANOS_BRANCH in .env or pass --branch" >&2
+  exit 1
+fi
 
 API_URL="https://${API_HOST}/api/v1/plugins/${PLUGIN}/branches/${BRANCH}/exemptions?issue_type=vulnerability"
 

@@ -77,12 +77,25 @@ RUN set -eux; \
 
 # Patch additional CVE-laden standalone jars bundled inside the Elasticsearch distribution.
 # Versions are pinned to the closest fix per Trivy advisory and cross-checked for binary compat.
+# renovate: datasource=maven depName=netty-codec-http lookupName=io.netty:netty-codec-http
 ARG NETTY_VERSION=4.1.132.Final
+# renovate: datasource=maven depName=jakarta.mail lookupName=com.sun.mail:jakarta.mail
 ARG JAKARTA_MAIL_VERSION=1.6.8
+# renovate: datasource=maven depName=log4j-core lookupName=org.apache.logging.log4j:log4j-core
 ARG LOG4J_VERSION=2.25.4
+# renovate: datasource=maven depName=bcprov-jdk18on lookupName=org.bouncycastle:bcprov-jdk18on
 ARG BOUNCYCASTLE_VERSION=1.84
+# renovate: datasource=maven depName=elastic-apm-agent-java8 lookupName=co.elastic.apm:elastic-apm-agent-java8
 ARG APM_AGENT_VERSION=1.55.6
 RUN set -eux; \
+    # Verify a Maven artifact against its published .sha1 sidecar before swapping it in. \
+    # (Maven Central exposes .sha1 for every artifact; .sha256/.sha512 are not always present.) \
+    verify_sha1() { \
+        file="$1" url="$2"; \
+        expected=$(curl -fsSL "${url}.sha1" | tr -d '[:space:]' | cut -c1-40); \
+        actual=$(sha1sum "$file" | cut -d' ' -f1); \
+        [ "$expected" = "$actual" ] || { echo "sha1 mismatch for $file (expected=$expected actual=$actual)" >&2; return 1; }; \
+    }; \
     for d in ${SONARQUBE_HOME}/elasticsearch/modules/transport-netty4 \
              ${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference \
              ${SONARQUBE_HOME}/elasticsearch/modules/x-pack-security; do \
@@ -93,12 +106,16 @@ RUN set -eux; \
     /tmp/jar-tools.sh replace "org.apache.logging.log4j" "log4j-1.2-api" 2.19.0 "$LOG4J_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-core"; \
     /tmp/jar-tools.sh replace "org.bouncycastle" "bcpkix-jdk18on" 1.79 "$BOUNCYCASTLE_VERSION" "${SONARQUBE_HOME}/elasticsearch/lib/tools/security-cli"; \
     /tmp/jar-tools.sh replace "org.bouncycastle" "bcprov-jdk18on" 1.79 "$BOUNCYCASTLE_VERSION" "${SONARQUBE_HOME}/elasticsearch/lib/tools/security-cli"; \
-    # elasticsearch-log4j-${esVer}.jar is just log4j-core renamed; replace contents with the fixed log4j-core. \
+    # elasticsearch-log4j-${esVer}.jar is just log4j-core renamed; replace contents with the fixed log4j-core (CVE-2025-68161, CVE-2026-34477, CVE-2026-34480). \
     ES_LOG4J_FILE=$(ls ${SONARQUBE_HOME}/elasticsearch/lib/elasticsearch-log4j-*.jar); \
-    curl -fsSL -o "$ES_LOG4J_FILE" "https://repo1.maven.org/maven2/org/apache/logging/log4j/log4j-core/${LOG4J_VERSION}/log4j-core-${LOG4J_VERSION}.jar"; \
-    # Replace bundled elastic-apm-agent-java8 (which shades log4j-core 2.25.0) with patched 1.55.6. \
+    ES_LOG4J_URL="https://repo1.maven.org/maven2/org/apache/logging/log4j/log4j-core/${LOG4J_VERSION}/log4j-core-${LOG4J_VERSION}.jar"; \
+    curl -fsSL -o "$ES_LOG4J_FILE" "$ES_LOG4J_URL"; \
+    verify_sha1 "$ES_LOG4J_FILE" "$ES_LOG4J_URL"; \
+    # Replace bundled elastic-apm-agent-java8 (shades log4j-core 2.25.0) with patched 1.55.6 (CVE-2025-68161, CVE-2026-34477/8/0). \
     APM_AGENT_FILE=$(ls ${SONARQUBE_HOME}/elasticsearch/modules/apm/elastic-apm-agent-java8-*.jar); \
-    curl -fsSL -o "$APM_AGENT_FILE" "https://repo1.maven.org/maven2/co/elastic/apm/elastic-apm-agent-java8/${APM_AGENT_VERSION}/elastic-apm-agent-java8-${APM_AGENT_VERSION}.jar"
+    APM_AGENT_URL="https://repo1.maven.org/maven2/co/elastic/apm/elastic-apm-agent-java8/${APM_AGENT_VERSION}/elastic-apm-agent-java8-${APM_AGENT_VERSION}.jar"; \
+    curl -fsSL -o "$APM_AGENT_FILE" "$APM_AGENT_URL"; \
+    verify_sha1 "$APM_AGENT_FILE" "$APM_AGENT_URL"
 
 COPY --chown=root:root --chmod=555 image/community-build/entrypoint.sh ${SONARQUBE_HOME}/docker/
 
