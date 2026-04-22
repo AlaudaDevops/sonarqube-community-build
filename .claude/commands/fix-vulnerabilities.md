@@ -156,9 +156,15 @@ If anything is still flagged: route it back through Step 3's table. Don't cheat 
 
 ## Step 7: Smoke test (required before PR)
 
-This step is non-negotiable. JAR replacements routinely break Elasticsearch / Web / CE startup with `NoSuchMethodError`, `NoClassDefFoundError`, or `IllegalArgumentException: Invalid Configuration class` (e.g. when only `log4j-core` is bumped while `log4j-api` / `log4j-slf4j2-impl` stay on the old version). Trivy alone will *not* catch these regressions — only running the image will.
+This step is non-negotiable. JAR replacements routinely break Elasticsearch / Web / CE startup with `NoSuchMethodError`, `NoClassDefFoundError`, or `IllegalArgumentException: Invalid Configuration class` (e.g. when only `log4j-core` is bumped while `log4j-api` / `log4j-slf4j2-impl` stay on the old version). And even when the image *boots*, the analyser side may have lost the ability to actually scan code (broken plugin classpath, removed scanner endpoints). Trivy alone will *not* catch either class of regression — only running the image and feeding it real code will.
 
-`hack/local-smoke-test.sh` boots SonarQube against a throwaway Postgres, polls `/api/system/status` until `UP`, scans the logs for the known-fatal patterns above, **then re-runs `hack/scan-image.sh` against both images and asserts the vulnerability budget is met**. The default budget is `0` for every severity.
+`hack/local-smoke-test.sh` is the closed-loop runner that does all of it:
+
+1. boots SonarQube against a throwaway Postgres on a private docker network,
+2. waits for `/api/system/status == UP`,
+3. greps the container logs for known-fatal patterns,
+4. runs `hack/scan-image.sh` against both images and asserts the vulnerability budget,
+5. **provisions an admin token, runs the official `sonarsource/sonar-scanner-cli` image against [`testing/repos/python-example`](testing/repos/python-example/), waits for the compute engine task to finish, and asserts `ncloc > 0` plus analysis status `SUCCESS`.**
 
 ```bash
 ./hack/local-smoke-test.sh \
@@ -170,20 +176,26 @@ This step is non-negotiable. JAR replacements routinely break Elasticsearch / We
 
 Useful flags:
 
-- `--max-severity HIGH,CRITICAL` — only count those severities towards the budget (matches the default Tekton gate).
-- `--keep` — leave the Postgres + SonarQube containers running so you can poke around (`docker logs sonar-smoke` / `psql ...`). Run `docker rm -f sonar-smoke sonar-smoke-pg && docker network rm sonar-smoke-net` when you're done.
-- `PLATFORM=linux/amd64 ./hack/local-smoke-test.sh ...` — required on Apple Silicon. The public Elasticsearch tarball fetched by the source build only ships x86_64 native libs, so you must `docker buildx build --platform linux/amd64 ...` first and then ask the smoke script to start the container under Rosetta.
+- `--scan-project-dir testing/repos/maven-simple` — switch to a different fixture under `testing/repos/`. Defaults to `python-example`, which doesn't need a JDK or Maven.
+- `--scan-project-key custom-key` — override the project key sent to SonarQube; defaults to `smoke-<basename>`.
+- `--scanner-image sonarsource/sonar-scanner-cli:11` — pin the scanner CLI version if needed.
+- `--skip-scan` — only do steps 1-4 (boot + log scan + Trivy budget) when you're certain Step 5 isn't useful (e.g. you already triggered an analysis manually). Default is to always run Step 5.
+- `--max-severity HIGH,CRITICAL` — restrict the Trivy budget to those severities (matches the default Tekton gate).
+- `--keep` — leave the Postgres + SonarQube containers running for manual poking. Clean up later with `docker rm -f sonar-smoke sonar-smoke-pg && docker network rm sonar-smoke-net`.
+- `PLATFORM=linux/amd64 ./hack/local-smoke-test.sh ...` — required on Apple Silicon. The public Elasticsearch tarball fetched by the source build only ships x86_64 native libs, so you must `docker build --platform linux/amd64 ...` first and then ask the smoke script to start everything under Rosetta. Note: macOS Docker Desktop's LinuxKit kernel is built without `CONFIG_SECCOMP`, which ES refuses to start without — full e2e on Apple Silicon currently only works in CI on a real Linux runner.
 
 Failure modes the smoke script catches that Trivy misses:
 
-| Symptom in logs | Most likely cause |
+| Symptom | Most likely cause |
 |---|---|
-| `NoSuchMethodError: ...LoaderUtil.newCheckedInstanceOfProperty` | log4j-core was upgraded but log4j-api / log4j-slf4j2-impl were left behind. |
+| `NoSuchMethodError: ...LoaderUtil.newCheckedInstanceOfProperty` in container logs | log4j-core was upgraded but log4j-api / log4j-slf4j2-impl were left behind. |
 | `NoClassDefFoundError` referencing a `com.fasterxml.jackson.*` class | Plugin / fat-jar overlay removed classes the host expected. |
 | `UnsatisfiedLinkError: ...elasticsearch/lib/platform/linux-aarch64/...` | Wrong architecture — rebuild with the right `--platform`. |
-| `Process[Web Server] is stopped` immediately after `Process[es] is up` plus a `JdbcSQLSyntaxErrorException` | The script was invoked against H2 — switch to Postgres (the script does so by default). |
+| `Process[Web Server] is stopped` right after `Process[es] is up` + `JdbcSQLSyntaxErrorException` | The script was launched against H2 — switch to Postgres (the script does so by default). |
+| `compute engine: FAILED` in Step 5 | Plugin classpath broken — analyser cannot register a sensor for the language under test. |
+| `Expected ncloc > 0` in Step 5 | Source files were never visible to the scanner. Check the volume mount and `sonar-project.properties` in the test project. |
 
-Do not move on to Step 8 until the smoke test ends with `==> PASS` AND the Trivy budget assertion passes. If either fails, route the offender back through Step 3.
+Do not move on to Step 8 until the smoke test ends with `==> PASS — ... SonarQube analysis succeeded (ncloc=...)`. If anything fails, route the offender back through Step 3.
 
 ## Step 8: Commit and PR
 

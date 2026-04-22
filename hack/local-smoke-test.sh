@@ -1,22 +1,38 @@
 #!/bin/bash
 set -euo pipefail
 
-# Smoke-test a locally-built SonarQube image: boot it against a throwaway
-# Postgres, wait for ES + Web + CE to come up, then re-scan with Trivy and
-# fail unless the image meets the expected vulnerability budget.
+# End-to-end smoke test for a locally-built SonarQube image:
+#   1. Boot it against a throwaway Postgres on a private docker network.
+#   2. Wait for /api/system/status == UP.
+#   3. Grep the container logs for known-fatal patterns Trivy can't see.
+#   4. Re-run Trivy against both images and assert a vulnerability budget.
+#   5. Drive a real SonarQube analysis against testing/repos/python-example
+#      using the official sonarsource/sonar-scanner-cli image, then fetch the
+#      project measures and assert ncloc > 0 + analysis status SUCCESS.
+#
+# Step 5 is the only thing that catches "the image came up but it can't
+# actually analyse code anymore" regressions (broken plugin classpath,
+# missing scanner endpoints, etc.).
 #
 # Usage:
 #   ./hack/local-smoke-test.sh [--main-image IMG] [--plugin-image IMG]
 #                              [--max-vulns N] [--max-severity SEV]
-#                              [--timeout SECONDS] [--keep]
+#                              [--timeout SECONDS]
+#                              [--scan-project-dir PATH] [--scan-project-key KEY]
+#                              [--scanner-image IMG] [--skip-scan]
+#                              [--keep]
 #
 # Defaults:
-#   --main-image    sonarqube-main:local-fix
-#   --plugin-image  sonarqube-plugins:local-fix
-#   --max-vulns     0          (assert this many vulnerabilities or fewer)
-#   --max-severity  ""         (empty = consider every severity; or set HIGH,CRITICAL etc.)
-#   --timeout       420        (seconds to wait for SonarQube to come up)
-#   --keep          do not stop the containers on exit (useful for manual poking)
+#   --main-image        sonarqube-main:local-fix
+#   --plugin-image      sonarqube-plugins:local-fix
+#   --max-vulns         0          (vulnerability budget)
+#   --max-severity      ""         (empty = consider every severity)
+#   --timeout           420        (seconds to wait for SonarQube to be UP)
+#   --scan-project-dir  testing/repos/python-example   (relative to repo root)
+#   --scan-project-key  smoke-<basename of project dir>
+#   --scanner-image     sonarsource/sonar-scanner-cli:latest
+#   --skip-scan         skip step 5 (trivy-only smoke)
+#   --keep              leave containers running on exit (useful for manual poking)
 #
 # Notes:
 #   - On Apple Silicon, the public Elasticsearch tarball used by the source
@@ -35,34 +51,52 @@ MAX_SEVERITY=""
 TIMEOUT=420
 KEEP=false
 PLATFORM="${PLATFORM:-}"
+SCAN_PROJECT_DIR="testing/repos/python-example"
+SCAN_PROJECT_KEY=""
+SCANNER_IMAGE="sonarsource/sonar-scanner-cli:latest"
+SKIP_SCAN=false
 NETWORK="sonar-smoke-net"
 PG_CONTAINER="sonar-smoke-pg"
 SQ_CONTAINER="sonar-smoke"
+ADMIN_PASSWORD="AlaudaDevops!SmokeTest"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --main-image)    MAIN_IMAGE="$2"; shift 2 ;;
-    --plugin-image)  PLUGIN_IMAGE="$2"; shift 2 ;;
-    --max-vulns)     MAX_VULNS="$2"; shift 2 ;;
-    --max-severity)  MAX_SEVERITY="$2"; shift 2 ;;
-    --timeout)       TIMEOUT="$2"; shift 2 ;;
-    --keep)          KEEP=true; shift ;;
+    --main-image)        MAIN_IMAGE="$2"; shift 2 ;;
+    --plugin-image)      PLUGIN_IMAGE="$2"; shift 2 ;;
+    --max-vulns)         MAX_VULNS="$2"; shift 2 ;;
+    --max-severity)      MAX_SEVERITY="$2"; shift 2 ;;
+    --timeout)           TIMEOUT="$2"; shift 2 ;;
+    --scan-project-dir)  SCAN_PROJECT_DIR="$2"; shift 2 ;;
+    --scan-project-key)  SCAN_PROJECT_KEY="$2"; shift 2 ;;
+    --scanner-image)     SCANNER_IMAGE="$2"; shift 2 ;;
+    --skip-scan)         SKIP_SCAN=true; shift ;;
+    --keep)              KEEP=true; shift ;;
     -h|--help)
       cat <<'EOF'
 Usage: local-smoke-test.sh [options]
 
-  --main-image    IMG  SonarQube image to smoke-test (default: sonarqube-main:local-fix)
-  --plugin-image  IMG  Plugin image to scan alongside (default: sonarqube-plugins:local-fix)
-  --max-vulns     N    Fail if Trivy reports more than N vulnerabilities (default: 0)
-  --max-severity  SEV  Restrict the scan to severities >= SEV (empty = all severities)
-  --timeout       SEC  Seconds to wait for SonarQube to be operational (default: 420)
-  --keep               Leave containers running on exit (otherwise auto-clean)
+  --main-image        IMG  SonarQube image to smoke-test (default: sonarqube-main:local-fix)
+  --plugin-image      IMG  Plugin image to scan alongside (default: sonarqube-plugins:local-fix)
+  --max-vulns         N    Fail if Trivy reports more than N vulnerabilities (default: 0)
+  --max-severity      SEV  Restrict the scan to severities >= SEV (empty = all severities)
+  --timeout           SEC  Seconds to wait for SonarQube to be operational (default: 420)
+  --scan-project-dir  DIR  Path (relative to repo root) of the project to analyse with sonar-scanner
+                            (default: testing/repos/python-example)
+  --scan-project-key  KEY  Project key to use in SonarQube (default: smoke-<basename of dir>)
+  --scanner-image     IMG  Scanner CLI image (default: sonarsource/sonar-scanner-cli:latest)
+  --skip-scan              Skip the SonarQube analysis step (trivy + boot only)
+  --keep                   Leave containers running on exit (otherwise auto-clean)
 EOF
       exit 0
       ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
+
+if [ -z "$SCAN_PROJECT_KEY" ]; then
+  SCAN_PROJECT_KEY="smoke-$(basename "$SCAN_PROJECT_DIR")"
+fi
 
 cleanup() {
   if [ "$KEEP" = true ]; then
@@ -214,4 +248,84 @@ if [ "$total_count" -gt "$MAX_VULNS" ]; then
 fi
 
 rm -f "$scan_main_json" "$scan_plugin_json"
-echo "==> PASS — image is operational and vulnerability budget is met."
+
+if [ "$SKIP_SCAN" = true ]; then
+  echo "==> --skip-scan set: skipping SonarQube analysis step."
+  echo "==> PASS — image is operational and vulnerability budget is met."
+  exit 0
+fi
+
+# --- Step 5: drive a real SonarQube analysis -------------------------------
+
+PROJECT_PATH="${REPO_ROOT}/${SCAN_PROJECT_DIR}"
+[ -d "$PROJECT_PATH" ] || { echo "ERROR: scan project dir not found: $PROJECT_PATH" >&2; exit 1; }
+
+echo "==> Initialising admin credentials"
+# First call resets default admin/admin; subsequent calls would 401 — that's expected
+# after a previous run reused the same Postgres volume, so swallow it and try the
+# already-rotated password before giving up.
+if ! curl -fsS -u admin:admin -X POST \
+       "http://localhost:19000/api/users/change_password?login=admin&previousPassword=admin&password=${ADMIN_PASSWORD}" \
+       >/dev/null 2>&1; then
+  if ! curl -fsS -u "admin:${ADMIN_PASSWORD}" "http://localhost:19000/api/system/ping" >/dev/null 2>&1; then
+    echo "==> Cannot authenticate to SonarQube as admin (default password not 'admin' and rotated password not '${ADMIN_PASSWORD}')." >&2
+    exit 1
+  fi
+fi
+
+echo "==> Generating analysis token"
+TOKEN=$(curl -fsS -u "admin:${ADMIN_PASSWORD}" -X POST \
+  "http://localhost:19000/api/user_tokens/generate?name=smoke-$(date +%s)&type=USER_TOKEN" \
+  | jq -r '.token')
+if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+  echo "==> Failed to generate user token" >&2
+  exit 1
+fi
+
+echo "==> Running sonar-scanner against ${SCAN_PROJECT_DIR} (key=${SCAN_PROJECT_KEY})"
+docker run --rm --network "$NETWORK" \
+  ${PLATFORM:+--platform "$PLATFORM"} \
+  -v "${PROJECT_PATH}:/usr/src" \
+  -e SONAR_HOST_URL="http://${SQ_CONTAINER}:9000" \
+  -e SONAR_TOKEN="$TOKEN" \
+  "$SCANNER_IMAGE" \
+  -Dsonar.projectKey="$SCAN_PROJECT_KEY" \
+  -Dsonar.projectName="Smoke ${SCAN_PROJECT_KEY}" \
+  -Dsonar.scm.disabled=true
+
+echo "==> Waiting for compute engine to process the analysis"
+ce_deadline=$(( $(date +%s) + 180 ))
+ce_status="NONE"
+while :; do
+  if [ "$(date +%s)" -ge "$ce_deadline" ]; then
+    echo "==> Timed out waiting for compute engine" >&2
+    exit 1
+  fi
+  ce_json=$(curl -fsS -u "${TOKEN}:" \
+    "http://localhost:19000/api/ce/component?component=${SCAN_PROJECT_KEY}" || true)
+  pending=$(echo "$ce_json" | jq -r '.queue | length' 2>/dev/null || echo 0)
+  ce_status=$(echo "$ce_json" | jq -r '.current.status // "NONE"' 2>/dev/null || echo "NONE")
+  if [ "$pending" = "0" ]; then
+    case "$ce_status" in
+      SUCCESS) echo "    compute engine: SUCCESS"; break ;;
+      FAILED|CANCELED) echo "==> Analysis ended with $ce_status" >&2; exit 1 ;;
+      NONE) sleep 3 ;;          # task hasn't appeared yet
+      *)    sleep 3 ;;
+    esac
+  else
+    sleep 3
+  fi
+done
+
+echo "==> Fetching project measures"
+measures_json=$(curl -fsS -u "${TOKEN}:" \
+  "http://localhost:19000/api/measures/component?component=${SCAN_PROJECT_KEY}&metricKeys=ncloc,bugs,vulnerabilities,code_smells,coverage,security_hotspots")
+echo "$measures_json" | jq -r '.component.measures[] | "    \(.metric)=\(.value)"'
+
+ncloc=$(echo "$measures_json" | jq -r '.component.measures[] | select(.metric=="ncloc") | .value')
+if [ -z "$ncloc" ] || ! [ "$ncloc" -gt 0 ] 2>/dev/null; then
+  echo "==> Expected ncloc > 0, got '${ncloc}' — analysis may not have parsed any source." >&2
+  exit 1
+fi
+
+echo "==> PASS — image is operational, vulnerability budget met, and SonarQube analysis succeeded (ncloc=${ncloc})."
