@@ -37,7 +37,8 @@ RUN set -eux; \
         libgnutls30t64=3.8.3-1.1ubuntu3.5 \
         libssh-4=0.10.6-2ubuntu0.4 \
         libsystemd0=255.4-1ubuntu8.14 \
-        libudev1=255.4-1ubuntu8.14;
+        libudev1=255.4-1ubuntu8.14 \
+        libcap2=1:2.66-5ubuntu2.4;
 
 COPY --chown=sonarsource:sonarsource source/sonar-application/build/distributions/sonar-application-${SONARQUBE_VERSION}.zip /home/sonarsource/
 COPY --chown=sonarsource:sonarsource --chmod=555 image/community-build/jar-tools.sh /tmp/jar-tools.sh
