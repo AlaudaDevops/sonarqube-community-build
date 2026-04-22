@@ -26,12 +26,18 @@ RUN set -eux; \
     apt-get update; \
     apt-get --no-install-recommends -y install \
         bash \
-        curl \
         fonts-dejavu \
         gnupg \
         unzip \
+        curl=8.5.0-2ubuntu10.8 \
+        libcurl4t64=8.5.0-2ubuntu10.8 \
+        openssl=3.0.13-0ubuntu3.9 \
+        libssl3t64=3.0.13-0ubuntu3.9 \
+        libfreetype6=2.13.2+dfsg-1ubuntu0.1 \
         libgnutls30t64=3.8.3-1.1ubuntu3.5 \
-        libssh-4=0.10.6-2ubuntu0.4;
+        libssh-4=0.10.6-2ubuntu0.4 \
+        libsystemd0=255.4-1ubuntu8.14 \
+        libudev1=255.4-1ubuntu8.14;
 
 COPY --chown=sonarsource:sonarsource source/sonar-application/build/distributions/sonar-application-${SONARQUBE_VERSION}.zip /home/sonarsource/
 COPY --chown=sonarsource:sonarsource --chmod=555 image/community-build/jar-tools.sh /tmp/jar-tools.sh
@@ -67,6 +73,31 @@ RUN set -eux; \
     /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "${JACKSON_CORE_FIXED_VERSION}" "${SONARQUBE_HOME}/elasticsearch/lib/elasticsearch-x-content-8.19.13.jar" "IMPL-JARS/x-content/jackson-core-2.17.2.jar"; \
     /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "${JACKSON_CORE_FIXED_VERSION}" "${SONARQUBE_HOME}/elasticsearch/lib/tools/plugin-cli/elasticsearch-x-content-8.19.13.jar" "IMPL-JARS/x-content/jackson-core-2.17.2.jar"; \
     /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "${JACKSON_CORE_FIXED_VERSION}" "${SONARQUBE_HOME}/lib/sonar-application-${SONARQUBE_VERSION}.jar"
+
+# Patch additional CVE-laden standalone jars bundled inside the Elasticsearch distribution.
+# Versions are pinned to the closest fix per Trivy advisory and cross-checked for binary compat.
+ARG NETTY_VERSION=4.1.132.Final
+ARG JAKARTA_MAIL_VERSION=1.6.8
+ARG LOG4J_VERSION=2.25.4
+ARG BOUNCYCASTLE_VERSION=1.84
+ARG APM_AGENT_VERSION=1.55.6
+RUN set -eux; \
+    for d in ${SONARQUBE_HOME}/elasticsearch/modules/transport-netty4 \
+             ${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference \
+             ${SONARQUBE_HOME}/elasticsearch/modules/x-pack-security; do \
+        /tmp/jar-tools.sh replace "io.netty" "netty-codec-http" 4.1.130.Final "$NETTY_VERSION" "$d"; \
+    done; \
+    /tmp/jar-tools.sh replace "io.netty" "netty-codec-http2" 4.1.130.Final "$NETTY_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference"; \
+    /tmp/jar-tools.sh replace "com.sun.mail" "jakarta.mail" 1.6.3 "$JAKARTA_MAIL_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-security"; \
+    /tmp/jar-tools.sh replace "org.apache.logging.log4j" "log4j-1.2-api" 2.19.0 "$LOG4J_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-core"; \
+    /tmp/jar-tools.sh replace "org.bouncycastle" "bcpkix-jdk18on" 1.79 "$BOUNCYCASTLE_VERSION" "${SONARQUBE_HOME}/elasticsearch/lib/tools/security-cli"; \
+    /tmp/jar-tools.sh replace "org.bouncycastle" "bcprov-jdk18on" 1.79 "$BOUNCYCASTLE_VERSION" "${SONARQUBE_HOME}/elasticsearch/lib/tools/security-cli"; \
+    # elasticsearch-log4j-${esVer}.jar is just log4j-core renamed; replace contents with the fixed log4j-core. \
+    ES_LOG4J_FILE=$(ls ${SONARQUBE_HOME}/elasticsearch/lib/elasticsearch-log4j-*.jar); \
+    curl -fsSL -o "$ES_LOG4J_FILE" "https://repo1.maven.org/maven2/org/apache/logging/log4j/log4j-core/${LOG4J_VERSION}/log4j-core-${LOG4J_VERSION}.jar"; \
+    # Replace bundled elastic-apm-agent-java8 (which shades log4j-core 2.25.0) with patched 1.55.6. \
+    APM_AGENT_FILE=$(ls ${SONARQUBE_HOME}/elasticsearch/modules/apm/elastic-apm-agent-java8-*.jar); \
+    curl -fsSL -o "$APM_AGENT_FILE" "https://repo1.maven.org/maven2/co/elastic/apm/elastic-apm-agent-java8/${APM_AGENT_VERSION}/elastic-apm-agent-java8-${APM_AGENT_VERSION}.jar"
 
 COPY --chown=root:root --chmod=555 image/community-build/entrypoint.sh ${SONARQUBE_HOME}/docker/
 

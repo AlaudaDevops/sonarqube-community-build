@@ -435,6 +435,8 @@ subprojects {
       dependency 'com.auth0:java-jwt:4.5.0'
       dependency 'io.netty:netty-all:4.2.9.Final'
       dependency 'jakarta.mail:jakarta.mail-api:2.1.5'
+      // Force runtime impl to fix CVE-2025-7962 (transitive in shaded sonar-application).
+      dependency 'com.sun.mail:jakarta.mail:2.0.2'
       dependency 'jakarta.annotation:jakarta.annotation-api:3.0.0'
       dependency 'jakarta.inject:jakarta.inject-api:2.0.1'
       dependency 'jakarta.servlet:jakarta.servlet-api:6.1.0'
