@@ -1,0 +1,23 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: sonarqube-community-build
+  title: Sonarqube Community Build
+  description: Build repository for SonarQube Community Edition container images and plugins.
+  annotations:
+    # github plugin
+    github.com/project-slug: AlaudaDevops/sonarqube-community-build
+    # harbor plugin
+    goharbor.io/repository-slug: devops/sonarqube,devops/sonarqube-plugins
+    # backstage techdocs plugin
+    backstage.io/techdocs-ref: dir:.
+    acp.cpaas.io/owner: kychen@alauda.io
+
+    # 组件属性，区别是否部署时必带的核心组件,可选值为 core 和 plugin。
+    acp.cpaas.io/functional-attributes: plugin
+
+spec:
+  type: plugin
+  system: system:devops-tools
+  lifecycle: production
+  owner: devops
