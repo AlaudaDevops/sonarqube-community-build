@@ -4,20 +4,37 @@ metadata:
   name: sonarqube-community-build
   title: Sonarqube Community Build
   description: Build repository for SonarQube Community Edition container images and plugins.
+  tags:
+    - sonarqube
+    - build
+    - container-image
+  links:
+    - url: https://github.com/AlaudaDevops/sonarqube-community-build
+      title: GitHub Repository
+      icon: github
+    - url: https://build-harbor.alauda.cn/harbor/projects/11/repositories?q=sonarqube
+      title: Harbor Images
+      icon: dashboard
   annotations:
     # github plugin
     github.com/project-slug: AlaudaDevops/sonarqube-community-build
     # harbor plugin
     goharbor.io/repository-slug: devops/sonarqube,devops/sonarqube-plugins
-    # backstage techdocs plugin
-    backstage.io/techdocs-ref: dir:.
+    # 开源组件代码仓库地址，格式：${url}/${project}/${repo}
+    acp.cpaas.io/open-source-component-repo: https://github.com/AlaudaDevops/sonarqube-community-build
+    # 开源组件的版本信息，只适用于开源组件，自研组件默认不收集版本信息,格式 ${version}
+    acp.cpaas.io/open-source-component-version: alauda-2026.1.0
+    # 开源组件的license信息,格式 ${license}
+    acp.cpaas.io/open-source-component-license: LGPL-3.0
+    # 开源组件的license地址,格式 ${url}/${project}/${repo}/${license-path}
+    acp.cpaas.io/open-source-component-license_url: https://github.com/AlaudaDevops/sonarqube-community-build/blob/alauda-2026.1.0/LICENSE
     acp.cpaas.io/owner: kychen@alauda.io
 
     # 组件属性，区别是否部署时必带的核心组件,可选值为 core 和 plugin。
     acp.cpaas.io/functional-attributes: plugin
 
 spec:
-  type: plugin
+  type: service
   system: system:devops-tools
   lifecycle: production
   owner: devops
