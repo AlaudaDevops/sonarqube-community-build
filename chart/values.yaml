@@ -1,3 +1,4 @@
+# no-op change to trigger integration-test pipeline on target branch baseline; will be reverted
 global:
   replicas: 1
   namespace: alauda-system
