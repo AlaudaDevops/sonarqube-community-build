@@ -25,8 +25,11 @@ data:
           fi
       }
 
-      # Load JDBC config and delete files after reading
-      load_env_from_directory /etc/sonar/config/jdbc true
+      # Load JDBC config (URL, username). Source is a ConfigMap, not a Secret,
+      # so keep files on disk: init containers do not re-run on container restart,
+      # and deleting them here would leave the wrapper unable to re-export the env
+      # vars on the next restart, silently falling back to embedded H2.
+      load_env_from_directory /etc/sonar/config/jdbc false
 
       # Load extra secrets and delete files after reading
       if [ -d "/etc/sonar/config/secrets" ]; then
