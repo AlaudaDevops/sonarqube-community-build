@@ -78,7 +78,7 @@ RUN set -eux; \
 # Patch additional CVE-laden standalone jars bundled inside the Elasticsearch distribution.
 # Versions are pinned to the closest fix per Trivy advisory and cross-checked for binary compat.
 # renovate: datasource=maven depName=netty-codec-http lookupName=io.netty:netty-codec-http
-ARG NETTY_VERSION=4.1.132.Final
+ARG NETTY_VERSION=4.1.135.Final
 # renovate: datasource=maven depName=jakarta.mail lookupName=com.sun.mail:jakarta.mail
 ARG JAKARTA_MAIL_VERSION=1.6.8
 # renovate: datasource=maven depName=log4j-core lookupName=org.apache.logging.log4j:log4j-core
