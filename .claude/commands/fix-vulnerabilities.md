@@ -67,6 +67,8 @@ If the primary registry is unreachable, point `HARBOR_REGISTRY_HOST` to the inte
 
 ## Step 3: Categorize each CVE and pick a strategy
 
+> **ES version first.** Before writing any `jar-tools.sh` line for a CVE inside the Elasticsearch bundle, check whether bumping `elasticSearchServerVersion` in `source/gradle.properties` already ships the fix. ES releases frequently upgrade netty, log4j, bouncycastle, jackson, etc. A version bump is always cleaner than accumulating jar-replacement lines that silently break when the next ES bump changes file names. Only fall back to `replace`/`overlay-from-maven` for CVEs that survive the latest available ES release. After bumping, run `FORCE_SOURCE=true ./hack/build-images.sh` so gradle actually fetches the new ES tarball (the existing zip is otherwise reused).
+
 Use this decision table **in priority order** — always pick the earliest option that actually fixes the CVE.
 
 | Source of the vulnerable artifact | Strategy | Where to change |
@@ -74,6 +76,7 @@ Use this decision table **in priority order** — always pick the earliest optio
 | Ubuntu noble apt package | Pin a fixed version inline | [image/community-build/Containerfile](image/community-build/Containerfile) — extend the `apt-get install` block. |
 | Alpine apk package (plugin image) | `apk upgrade --no-cache <pkg>...` | [image/plugin/Containerfile](image/plugin/Containerfile) — add an `apk upgrade` line before `apk add`. |
 | Maven dep that flows through `source/build.gradle` resolution | Bump in the dependency BOM or add an explicit override | [source/build.gradle](source/build.gradle) — typical edits: `jackson-bom`, `mssql-jdbc`, `sonar-{python,text}-plugin`, `com.sun.mail:jakarta.mail` (override transitive). |
+| **Bundled Elasticsearch artifact (any kind)** | **Bump `elasticSearchServerVersion` first** — re-scan after the rebuild. Only add `jar-tools.sh` lines for CVEs that survive the new ES version. | `source/gradle.properties` → rebuild with `FORCE_SOURCE=true`. |
 | Bundled Elasticsearch — standalone jar in `elasticsearch/modules/<m>/<artifact>-<ver>.jar` | `jar-tools.sh replace` | [image/community-build/Containerfile](image/community-build/Containerfile) — extend the existing `jar-tools.sh` RUN block. |
 | Bundled ES — fat-jar shaded dep (`elasticsearch-x-content`, `sonar-application`, `sonar-python-plugin`) | `jar-tools.sh overlay-from-maven` | Same Containerfile. Pass the `target-prefix` arg for IMPL-JARS layout (e.g. `IMPL-JARS/x-content/jackson-core-2.17.2.jar`). |
 | Bundled ES — entire jar is a renamed upstream artifact (`elasticsearch-log4j-X.jar` is just `log4j-core` renamed) | Direct `curl -fsSL -o $TARGET <maven_url>` | Same Containerfile, after the `jar-tools.sh` calls. |
@@ -154,9 +157,9 @@ Trivy auto-loads `.trivyignore` from the working directory, so run the script fr
 
 If anything is still flagged: route it back through Step 3's table. Don't cheat by silencing real CVEs in `.trivyignore` — submit an exemption to Thanos and let `sync-trivyignore.sh` regenerate the file.
 
-## Step 7: Smoke test (required before PR)
+## Step 7: Smoke test (required before PR — no exceptions)
 
-This step is non-negotiable. JAR replacements routinely break Elasticsearch / Web / CE startup with `NoSuchMethodError`, `NoClassDefFoundError`, or `IllegalArgumentException: Invalid Configuration class` (e.g. when only `log4j-core` is bumped while `log4j-api` / `log4j-slf4j2-impl` stay on the old version). And even when the image *boots*, the analyser side may have lost the ability to actually scan code (broken plugin classpath, removed scanner endpoints). Trivy alone will *not* catch either class of regression — only running the image and feeding it real code will.
+**This step is a hard gate. Do not commit or open a PR until the smoke test passes.** A clean Trivy scan is necessary but not sufficient — JAR replacements routinely break Elasticsearch / Web / CE startup with `NoSuchMethodError`, `NoClassDefFoundError`, or `IllegalArgumentException: Invalid Configuration class` (e.g. when only `log4j-core` is bumped while `log4j-api` / `log4j-slf4j2-impl` stay on the old version). And even when the image *boots*, the analyser side may have lost the ability to actually scan code (broken plugin classpath, removed scanner endpoints). Trivy alone will *not* catch either class of regression — only running the image and feeding it real code will.
 
 `hack/local-smoke-test.sh` is the closed-loop runner that does all of it:
 
@@ -184,6 +187,39 @@ Useful flags:
 - `--keep` — leave the Postgres + SonarQube containers running for manual poking. Clean up later with `docker rm -f sonar-smoke sonar-smoke-pg && docker network rm sonar-smoke-net`.
 - `PLATFORM=linux/amd64 ./hack/local-smoke-test.sh ...` — required on Apple Silicon. The public Elasticsearch tarball fetched by the source build only ships x86_64 native libs, so you must `docker build --platform linux/amd64 ...` first and then ask the smoke script to start everything under Rosetta. Note: macOS Docker Desktop's LinuxKit kernel is built without `CONFIG_SECCOMP`, which ES refuses to start without — full e2e on Apple Silicon currently only works in CI on a real Linux runner.
 
+### Apple Silicon fallback: cluster-based smoke validation
+
+ES 8.x unconditionally calls `tryInstallExecSandbox` during startup — it throws `UnsupportedOperationException: seccomp unavailable: CONFIG_SECCOMP not compiled into kernel` if the kernel lacks SECCOMP support. OrbStack's x86_64 Rosetta emulation layer does not expose CONFIG_SECCOMP, so the local smoke test **cannot run on Apple Silicon regardless of flags or env vars** (`-Des.bootstrap.system_call_filter=false` is accepted by SonarQube's JVM args but ignored by ES 8.x which checks SECCOMP before bootstrap gates). You cannot override `-Des.enforce.bootstrap.checks=true` either — SonarQube rejects it as a mandatory-option conflict.
+
+When the local smoke test is blocked by this limitation, ask the user to provide a test environment:
+
+> "Local smoke test cannot run on Apple Silicon (ES requires CONFIG_SECCOMP which OrbStack's Rosetta kernel does not provide). Please provide:
+> 1. A registry I can push the image to (e.g. `<registry>/<project>/sonarqube-main:<tag>`)
+> 2. A kubeconfig / cluster where there is an existing SonarQube deployment to update, or a namespace where I can deploy one
+>
+> I will push the linux/amd64 image, roll it out to the cluster, and confirm the pod reaches Running state and SonarQube reports status UP."
+
+Once the user supplies the environment, the steps are:
+
+```bash
+# 1. Rebuild as linux/amd64 for the x86_64 cluster
+BUILD_PLATFORM=linux/amd64 ./hack/build-images.sh --target main --skip-source --tag local-fix
+
+# 2. Push to the registry provided by the user
+docker tag sonarqube-main:local-fix <registry>/<project>/sonarqube-main:<tag>
+docker push <registry>/<project>/sonarqube-main:<tag>
+
+# 3. Roll out (update the image in the existing deployment, or deploy fresh)
+kubectl set image deployment/<name> <container>=<registry>/<project>/sonarqube-main:<tag> -n <namespace>
+kubectl rollout status deployment/<name> -n <namespace> --timeout=300s
+
+# 4. Verify manually:
+#    - SonarQube UI loads and status is UP
+#    - Run a project analysis and confirm it completes successfully
+```
+
+The cluster deployment is NOT a full substitute for `local-smoke-test.sh` (no automated analysis assertion or log pattern check), but it **proves the image boots and ES starts** on a real Linux x86_64 kernel. Mark the PR with `smoke-test: cluster` and note that the CI pipeline's smoke step will provide the full automated validation.
+
 Failure modes the smoke script catches that Trivy misses:
 
 | Symptom | Most likely cause |
@@ -194,8 +230,9 @@ Failure modes the smoke script catches that Trivy misses:
 | `Process[Web Server] is stopped` right after `Process[es] is up` + `JdbcSQLSyntaxErrorException` | The script was launched against H2 — switch to Postgres (the script does so by default). |
 | `compute engine: FAILED` in Step 5 | Plugin classpath broken — analyser cannot register a sensor for the language under test. |
 | `Expected ncloc > 0` in Step 5 | Source files were never visible to the scanner. Check the volume mount and `sonar-project.properties` in the test project. |
+| `seccomp unavailable: CONFIG_SECCOMP not compiled into kernel` | Running on Apple Silicon under OrbStack Rosetta — use the cluster fallback above. |
 
-Do not move on to Step 8 until the smoke test ends with `==> PASS — ... SonarQube analysis succeeded (ncloc=...)`. If anything fails, route the offender back through Step 3.
+Do not move on to Step 8 until **either** the smoke test ends with `==> PASS — ... SonarQube analysis succeeded (ncloc=...)` **or** the cluster deployment is confirmed UP and a manual analysis completes successfully. If anything fails, route the offender back through Step 3.
 
 ## Step 8: Commit and PR
 
