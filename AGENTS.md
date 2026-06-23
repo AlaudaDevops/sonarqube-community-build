@@ -21,6 +21,7 @@ This repository combines upstream SonarQube sources with Alauda packaging.
 JDK 21+ is required for `source/`. Kubernetes tests require a working `kubeconfig`, ingress, and RWX-capable storage.
 
 ## Image Scan Workflow
+- Codex command routing: when the user asks to run `fix-vulnerabilities`, fix image vulnerabilities, or execute the Claude vulnerability command, read [`.claude/commands/fix-vulnerabilities.md`](.claude/commands/fix-vulnerabilities.md) first and follow it as the authoritative workflow. Report progress at each stage and pause before risky changes such as force-push, fork creation, or `.trivyignore` exemption changes.
 - Build and scan locally only; do not push intermediate images. Use explicit tags such as `sonarqube-community-build:fix-20260324-c893a9f9`.
 - Scan with the private Trivy DB mirrors and pin the latest date tag published in `registry.alauda.cn:60070/ops/aquasecurity/trivy-db` and `registry.alauda.cn:60070/ops/aquasecurity/trivy-java-db`.
 - Example baseline scan:
