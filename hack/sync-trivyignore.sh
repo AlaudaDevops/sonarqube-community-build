@@ -38,6 +38,7 @@ while [[ $# -gt 0 ]]; do
     --plugin)   PLUGIN="$2"; shift 2 ;;
     --branch)   BRANCH="$2"; shift 2 ;;
     --api-host) API_HOST="$2"; shift 2 ;;
+    --api-key)  API_KEY="$2"; shift 2 ;;
     --dry-run)  DRY_RUN=true; shift ;;
     -h|--help)
       cat <<'EOF'
@@ -46,6 +47,7 @@ Usage: sync-trivyignore.sh [--plugin PLUGIN] [--branch BRANCH] [--api-host HOST]
   --plugin PLUGIN   Thanos plugin name   (default: $THANOS_PLUGIN from .env)
   --branch BRANCH   Thanos branch        (default: $THANOS_BRANCH from .env, else current git branch)
   --api-host HOST   Thanos API host      (default: $THANOS_API_HOST from .env)
+  --api-key KEY     Thanos API key       (default: $THANOS_API_KEY from .env)
   --dry-run         Print the rendered .trivyignore to stdout instead of writing it
 EOF
       exit 0
@@ -57,6 +59,7 @@ done
 PLUGIN="${PLUGIN:-${THANOS_PLUGIN:-}}"
 BRANCH="${BRANCH:-${THANOS_BRANCH:-$(git -C "$REPO_ROOT" symbolic-ref --short HEAD 2>/dev/null || true)}}"
 API_HOST="${API_HOST:-${THANOS_API_HOST:-}}"
+API_KEY="${API_KEY:-${THANOS_API_KEY:-}}"
 
 if [ -z "$API_HOST" ]; then
   echo "ERROR: Thanos API host not set. Define THANOS_API_HOST in .env (see .env.example) or pass --api-host" >&2
@@ -70,11 +73,15 @@ if [ -z "$BRANCH" ]; then
   echo "ERROR: Thanos branch not resolvable. Define THANOS_BRANCH in .env or pass --branch" >&2
   exit 1
 fi
+if [ -z "$API_KEY" ]; then
+  echo "ERROR: Thanos API key not set. Define THANOS_API_KEY in .env (see .env.example) or pass --api-key" >&2
+  exit 1
+fi
 
 API_URL="https://${API_HOST}/api/v1/plugins/${PLUGIN}/branches/${BRANCH}/exemptions?issue_type=vulnerability"
 
 echo "==> Fetching exemptions from $API_URL"
-RESPONSE=$(curl -sf --max-time 30 "$API_URL") || {
+RESPONSE=$(curl -sf --max-time 30 "$API_URL" -H "Authorization: Bearer $API_KEY") || {
   echo "ERROR: failed to fetch exemptions from $API_URL" >&2
   exit 1
 }
@@ -139,7 +146,7 @@ if [ "$DRY_RUN" = true ]; then
 fi
 
 echo "$CONTENT" > "$TRIVYIGNORE"
-CVE_COUNT=$(grep -c '^CVE-\|^GHSA-' "$TRIVYIGNORE" 2>/dev/null || echo 0)
+CVE_COUNT=$(grep -cE '^(CVE-|GHSA-)' "$TRIVYIGNORE" 2>/dev/null || true)
 echo "==> Wrote $TRIVYIGNORE ($CVE_COUNT entries)"
 
 if git -C "$REPO_ROOT" rev-parse --git-dir > /dev/null 2>&1; then

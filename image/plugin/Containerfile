@@ -3,7 +3,7 @@ FROM build-harbor.alauda.cn/ops/alpine:3.21.5-alauda-202601301100
 # when install sonarqube-community-branch-plugin need update https://github.com/mc1arke/sonarqube-community-branch-plugin/tree/26.1.0?tab=readme-ov-file#manual-install
 ARG SONARQUBE_WEB_VERSION=26.1.0
 # Install CA certificates for TLS validation; upgrade libcrypto3/libssl3, musl, zlib to patch known CVEs.
-RUN apk upgrade --no-cache libcrypto3 libssl3 musl musl-utils zlib && \
+RUN apk upgrade --no-cache libcrypto3 libssl3 libexpat musl musl-utils xz-libs zlib && \
     apk add --no-cache ca-certificates wget unzip zip python3
 
 ADD image/plugin/plugins.txt /tmp/plugins/

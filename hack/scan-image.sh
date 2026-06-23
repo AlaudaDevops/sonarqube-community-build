@@ -60,7 +60,7 @@ if [ "${#IMAGES[@]}" -eq 0 ]; then
     echo "ERROR: --image not given and yq missing — cannot parse chart/values.yaml" >&2
     exit 1
   fi
-  TAG=$(yq '.global.images.app.tag // .global.images.sonar.tag' "$REPO_ROOT/chart/values.yaml")
+  TAG=$(yq -r '.global.images.app.tag // .global.images.sonar.tag // .global.images.sonarqube.tag' "$REPO_ROOT/chart/values.yaml")
   if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
     echo "ERROR: could not read image tag from chart/values.yaml" >&2
     exit 1
