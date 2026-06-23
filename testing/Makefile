@@ -1,5 +1,5 @@
-REPORT ?= pretty
-GODOG_ARGS ?= --godog.concurrency=1 --godog.format=$(REPORT)
+REPORT ?= allure
+GODOG_ARGS ?= --godog.concurrency=2 --godog.format=$(REPORT)
 TESTING_CONFIG ?= ./config.yaml
 
 TEST_COMMAND ?= go test -timeout=4h -v -count 1 .
