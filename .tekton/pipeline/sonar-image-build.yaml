@@ -125,7 +125,8 @@ spec:
             #!/bin/bash
             set -e
 
-            ln -s $(workspaces.cache.path)/cache $HOME/.gradle
+            mkdir -p $(workspaces.cache.path)/cache
+            ln -sfn $(workspaces.cache.path)/cache $HOME/.gradle
 
             if [ "$(params.clean-cache)" == "true" ]; then
               rm -rf $HOME/.gradle/caches/*
