@@ -108,6 +108,7 @@ build_main() {
 
   echo "==> docker build sonarqube-main:$TAG"
   docker build $NO_CACHE \
+    ${BUILD_PLATFORM:+--platform "$BUILD_PLATFORM"} \
     -t "sonarqube-main:$TAG" \
     -f image/community-build/Containerfile \
     --build-arg "SONARQUBE_VERSION=$SONAR_VERSION" \

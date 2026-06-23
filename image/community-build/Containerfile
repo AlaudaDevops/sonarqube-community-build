@@ -68,70 +68,36 @@ RUN set -eux; \
     apt-get remove -y gnupg unzip; \
     rm -rf /var/lib/apt/lists/*;
 
-# renovate: datasource=maven depName=commons-lang3 lookupName=org.apache.commons:commons-lang3
-ARG COMMONS_LANG3_VERSION=3.20.0
-# renovate: datasource=maven depName=jackson-core lookupName=com.fasterxml.jackson.core:jackson-core
-ARG JACKSON_CORE_FIXED_VERSION=2.21.2
-RUN set -eux; \
-    /tmp/jar-tools.sh replace "org.apache.commons" "commons-lang3" 3.9 "$COMMONS_LANG3_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference/"; \
-    /tmp/jar-tools.sh replace "com.fasterxml.jackson.core" "jackson-core" 2.15.0 2.18.6 "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference/"; \
-    /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "${JACKSON_CORE_FIXED_VERSION}" "${SONARQUBE_HOME}/lib/extensions/sonar-python-plugin-5.19.0.32098.jar"; \
-    /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "${JACKSON_CORE_FIXED_VERSION}" "${SONARQUBE_HOME}/elasticsearch/bin/elasticsearch-sql-cli-8.19.13.jar"; \
-    /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "${JACKSON_CORE_FIXED_VERSION}" "${SONARQUBE_HOME}/elasticsearch/lib/elasticsearch-x-content-8.19.13.jar" "IMPL-JARS/x-content/jackson-core-2.17.2.jar"; \
-    /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "${JACKSON_CORE_FIXED_VERSION}" "${SONARQUBE_HOME}/elasticsearch/lib/tools/plugin-cli/elasticsearch-x-content-8.19.13.jar" "IMPL-JARS/x-content/jackson-core-2.17.2.jar"; \
-    /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "${JACKSON_CORE_FIXED_VERSION}" "${SONARQUBE_HOME}/lib/sonar-application-${SONARQUBE_VERSION}.jar"
-
-# Patch additional CVE-laden standalone jars bundled inside the Elasticsearch distribution.
-# Versions are pinned to the closest fix per Trivy advisory and cross-checked for binary compat.
-# renovate: datasource=maven depName=netty-codec-http lookupName=io.netty:netty-codec-http
+# ES 8.19.16 ships netty 4.1.133.Final; several artifacts still need 4.1.135.Final.
+# renovate: datasource=maven depName=netty-handler lookupName=io.netty:netty-handler
 ARG NETTY_VERSION=4.1.135.Final
-# renovate: datasource=maven depName=jakarta.mail lookupName=com.sun.mail:jakarta.mail
-ARG JAKARTA_MAIL_VERSION=1.6.8
-# renovate: datasource=maven depName=log4j-core lookupName=org.apache.logging.log4j:log4j-core
-ARG LOG4J_VERSION=2.25.4
-# renovate: datasource=maven depName=bcprov-jdk18on lookupName=org.bouncycastle:bcprov-jdk18on
-ARG BOUNCYCASTLE_VERSION=1.84
-# renovate: datasource=maven depName=elastic-apm-agent-java8 lookupName=co.elastic.apm:elastic-apm-agent-java8
-ARG APM_AGENT_VERSION=1.55.6
 RUN set -eux; \
-    # Verify a Maven artifact against its published .sha1 sidecar before swapping it in. \
-    # (Maven Central exposes .sha1 for every artifact; .sha256/.sha512 are not always present.) \
-    verify_sha1() { \
-        file="$1" url="$2"; \
-        expected=$(curl -fsSL "${url}.sha1" | tr -d '[:space:]' | cut -c1-40); \
-        actual=$(sha1sum "$file" | cut -d' ' -f1); \
-        [ "$expected" = "$actual" ] || { echo "sha1 mismatch for $file (expected=$expected actual=$actual)" >&2; return 1; }; \
-    }; \
     for d in ${SONARQUBE_HOME}/elasticsearch/modules/transport-netty4 \
              ${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference \
              ${SONARQUBE_HOME}/elasticsearch/modules/x-pack-security; do \
-        /tmp/jar-tools.sh replace "io.netty" "netty-codec" 4.1.130.Final "$NETTY_VERSION" "$d"; \
-        /tmp/jar-tools.sh replace "io.netty" "netty-codec-http" 4.1.130.Final "$NETTY_VERSION" "$d"; \
-        /tmp/jar-tools.sh replace "io.netty" "netty-handler" 4.1.130.Final "$NETTY_VERSION" "$d"; \
+        /tmp/jar-tools.sh replace "io.netty" "netty-handler"   4.1.133.Final "$NETTY_VERSION" "$d"; \
+        /tmp/jar-tools.sh replace "io.netty" "netty-codec-http" 4.1.133.Final "$NETTY_VERSION" "$d"; \
     done; \
-    /tmp/jar-tools.sh replace "io.netty" "netty-codec-http2" 4.1.130.Final "$NETTY_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference"; \
-    /tmp/jar-tools.sh replace "io.netty" "netty-codec-dns" 4.1.130.Final "$NETTY_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference"; \
-    /tmp/jar-tools.sh replace "io.netty" "netty-resolver-dns" 4.1.130.Final "$NETTY_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference"; \
-    /tmp/jar-tools.sh replace "io.opentelemetry" "opentelemetry-api" 1.31.0 1.62.0 "${SONARQUBE_HOME}/elasticsearch/modules/apm"; \
-    /tmp/jar-tools.sh replace "com.sun.mail" "jakarta.mail" 1.6.3 "$JAKARTA_MAIL_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-security"; \
-    /tmp/jar-tools.sh replace "org.apache.logging.log4j" "log4j-1.2-api" 2.19.0 "$LOG4J_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-core"; \
-    # Keep the rest of the log4j family aligned with log4j-core ($LOG4J_VERSION) — \
-    # the new log4j-core requires API methods added after 2.19.0, otherwise ES boot \
-    # fails with NoSuchMethodError on LoaderUtil.newCheckedInstanceOfProperty. \
-    /tmp/jar-tools.sh replace "org.apache.logging.log4j" "log4j-api" 2.19.0 "$LOG4J_VERSION" "${SONARQUBE_HOME}/elasticsearch/lib"; \
-    /tmp/jar-tools.sh replace "org.apache.logging.log4j" "log4j-slf4j2-impl" 2.19.0 "$LOG4J_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-core"; \
-    /tmp/jar-tools.sh replace "org.bouncycastle" "bcpkix-jdk18on" 1.79 "$BOUNCYCASTLE_VERSION" "${SONARQUBE_HOME}/elasticsearch/lib/tools/security-cli"; \
-    /tmp/jar-tools.sh replace "org.bouncycastle" "bcprov-jdk18on" 1.79 "$BOUNCYCASTLE_VERSION" "${SONARQUBE_HOME}/elasticsearch/lib/tools/security-cli"; \
-    # elasticsearch-log4j-${esVer}.jar is just log4j-core renamed; replace contents with the fixed log4j-core (CVE-2025-68161, CVE-2026-34477, CVE-2026-34480). \
-    ES_LOG4J_FILE=$(ls ${SONARQUBE_HOME}/elasticsearch/lib/elasticsearch-log4j-*.jar); \
-    ES_LOG4J_URL="https://repo1.maven.org/maven2/org/apache/logging/log4j/log4j-core/${LOG4J_VERSION}/log4j-core-${LOG4J_VERSION}.jar"; \
-    curl -fsSL -o "$ES_LOG4J_FILE" "$ES_LOG4J_URL"; \
-    verify_sha1 "$ES_LOG4J_FILE" "$ES_LOG4J_URL"; \
-    # Replace bundled elastic-apm-agent-java8 (shades log4j-core 2.25.0) with patched 1.55.6 (CVE-2025-68161, CVE-2026-34477/8/0). \
-    APM_AGENT_FILE=$(ls ${SONARQUBE_HOME}/elasticsearch/modules/apm/elastic-apm-agent-java8-*.jar); \
-    APM_AGENT_URL="https://repo1.maven.org/maven2/co/elastic/apm/elastic-apm-agent-java8/${APM_AGENT_VERSION}/elastic-apm-agent-java8-${APM_AGENT_VERSION}.jar"; \
-    curl -fsSL -o "$APM_AGENT_FILE" "$APM_AGENT_URL"; \
-    verify_sha1 "$APM_AGENT_FILE" "$APM_AGENT_URL"
+    /tmp/jar-tools.sh replace "io.netty" "netty-codec-http2"  4.1.133.Final "$NETTY_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference"; \
+    /tmp/jar-tools.sh replace "io.netty" "netty-resolver-dns" 4.1.133.Final "$NETTY_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference"
+
+# renovate: datasource=maven depName=commons-lang3 lookupName=org.apache.commons:commons-lang3
+ARG COMMONS_LANG3_VERSION=3.18.0
+# renovate: datasource=maven depName=jakarta.mail lookupName=com.sun.mail:jakarta.mail
+ARG JAKARTA_MAIL_VERSION=1.6.8
+RUN set -eux; \
+    /tmp/jar-tools.sh replace "org.apache.commons" "commons-lang3" 3.9 "$COMMONS_LANG3_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference/"; \
+    /tmp/jar-tools.sh replace "com.sun.mail" "jakarta.mail" 1.6.3 "$JAKARTA_MAIL_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-security"
+
+# renovate: datasource=maven depName=jackson-core lookupName=com.fasterxml.jackson.core:jackson-core
+ARG JACKSON_CORE_FIXED_VERSION=2.21.2
+RUN set -eux; \
+    /tmp/jar-tools.sh replace "com.fasterxml.jackson.core" "jackson-core" 2.15.0 "$JACKSON_CORE_FIXED_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference/"; \
+    /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "$JACKSON_CORE_FIXED_VERSION" "${SONARQUBE_HOME}/elasticsearch/bin/elasticsearch-sql-cli-8.19.16.jar"; \
+    /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "$JACKSON_CORE_FIXED_VERSION" "${SONARQUBE_HOME}/elasticsearch/lib/elasticsearch-x-content-8.19.16.jar" "IMPL-JARS/x-content/jackson-core-2.17.2.jar"; \
+    /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "$JACKSON_CORE_FIXED_VERSION" "${SONARQUBE_HOME}/elasticsearch/lib/tools/plugin-cli/elasticsearch-x-content-8.19.16.jar" "IMPL-JARS/x-content/jackson-core-2.17.2.jar"; \
+    /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "$JACKSON_CORE_FIXED_VERSION" "${SONARQUBE_HOME}/lib/sonar-application-${SONARQUBE_VERSION}.jar"; \
+    /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "$JACKSON_CORE_FIXED_VERSION" "${SONARQUBE_HOME}/lib/extensions/sonar-python-plugin-5.19.0.32098.jar"
 
 COPY --chown=root:root --chmod=555 image/community-build/entrypoint.sh ${SONARQUBE_HOME}/docker/
 

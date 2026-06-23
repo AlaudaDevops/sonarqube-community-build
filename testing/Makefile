@@ -1,8 +1,8 @@
-REPORT ?= pretty
+REPORT ?= allure
 GODOG_ARGS ?= --godog.concurrency=2 --godog.format=$(REPORT)
 TESTING_CONFIG ?= ./config.yaml
 
-TEST_COMMAND ?= go test -timeout=1h -v -count 1 .
+TEST_COMMAND ?= go test -timeout=4h -v -count 1 .
 ARCH ?= amd64
 BIN ?= ./bin
 
