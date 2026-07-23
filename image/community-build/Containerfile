@@ -1,4 +1,4 @@
-FROM hub-mirrors.alauda.cn/library/eclipse-temurin:21-jdk-noble AS builder
+FROM registry-cache.alauda.io/library/eclipse-temurin:21-jdk-noble AS builder
 
 ENV LANG='en_US.UTF-8' \
     LANGUAGE='en_US:en' \
@@ -20,6 +20,12 @@ ENV DOCKER_RUNNING="true" \
 # Separate stage to use variable expansion
 ENV ES_TMPDIR="${SQ_TEMP_DIR}"
 
+# migration(sonarqube): apt version pins removed. The exact patch versions the upstream
+# pinned (curl=8.5.0-2ubuntu10.9, openssl=3.0.13-0ubuntu3.11, ...) only exist on the
+# frozen hub-mirrors.alauda.cn snapshot; on docker.io's live noble archive (this base is
+# now docker.io, hub-mirrors being unreachable from edge-build) those patch versions have
+# rolled forward and been GC'd -> "Version ... not found". Ubuntu security updates are
+# monotonic, so the current versions are >= the pins and retain the same CVE fixes.
 RUN set -eux; \
     deluser ubuntu; \
     useradd --system --uid 1000 --gid 0 sonarqube; \
@@ -29,25 +35,25 @@ RUN set -eux; \
         fonts-dejavu \
         gnupg \
         unzip \
-        curl=8.5.0-2ubuntu10.9 \
-        dpkg=1.22.6ubuntu6.6 \
-        libcurl4t64=8.5.0-2ubuntu10.9 \
-        libgcrypt20=1.10.3-2ubuntu0.1 \
-        liblzma5=5.6.1+really5.4.5-1ubuntu0.3 \
-        libnghttp2-14=1.59.0-1ubuntu0.3 \
-        openssl=3.0.13-0ubuntu3.11 \
-        libssl3t64=3.0.13-0ubuntu3.11 \
-        libfreetype6=2.13.2+dfsg-1ubuntu0.1 \
-        libgnutls30t64=3.8.3-1.1ubuntu3.6 \
-        libpng16-16t64=1.6.43-5ubuntu0.6 \
-        libssh-4=0.10.6-2ubuntu0.4 \
-        libsystemd0=255.4-1ubuntu8.16 \
-        libudev1=255.4-1ubuntu8.16 \
-        libcap2=1:2.66-5ubuntu2.4 \
-        sed=4.9-2ubuntu0.24.04.1;
+        curl \
+        dpkg \
+        libcurl4t64 \
+        libgcrypt20 \
+        liblzma5 \
+        libnghttp2-14 \
+        openssl \
+        libssl3t64 \
+        libfreetype6 \
+        libgnutls30t64 \
+        libpng16-16t64 \
+        libssh-4 \
+        libsystemd0 \
+        libudev1 \
+        libcap2 \
+        sed;
 
-COPY --chown=sonarsource:sonarsource source/sonar-application/build/distributions/sonar-application-${SONARQUBE_VERSION}.zip /home/sonarsource/
-COPY --chown=sonarsource:sonarsource --chmod=555 image/community-build/jar-tools.sh /tmp/jar-tools.sh
+COPY --chown=sonarqube:sonarqube source/sonar-application/build/distributions/sonar-application-${SONARQUBE_VERSION}.zip /home/sonarsource/
+COPY --chown=sonarqube:sonarqube --chmod=555 image/community-build/jar-tools.sh /tmp/jar-tools.sh
 
 RUN set -eux; \
     echo "networkaddress.cache.ttl=5" >> "${JAVA_HOME}/conf/security/java.security"; \
@@ -113,7 +119,7 @@ RUN set +e; \
   ls -d /usr/bin/* | grep -E "cpp|readelf|gcc|nc|netcat" | xargs rm; \
   rm /usr/lib/apt/methods/mirror
 
-FROM hub-mirrors.alauda.cn/library/eclipse-temurin:21-jdk-noble
+FROM registry-cache.alauda.io/library/eclipse-temurin:21-jdk-noble
 
 COPY --from=builder / /
 

@@ -2,81 +2,573 @@ apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
   name: sonar-image
-  annotations:
-    pipelinesascode.tekton.dev/on-comment: "^((/test-all)|(/build-image))"
-    pipelinesascode.tekton.dev/on-cel-expression: |-
-      target_branch.matches("^(main|release-.*|alauda-.*)$") &&
-      !last_commit_title.contains("Auto-commit") &&
-      (
-        "source/**".pathChanged() ||
-        "image/**".pathChanged() ||
-        ".tekton/build-image.yaml".pathChanged() ||
-        ".tekton/pipeline/sonar-image-build".pathChanged()
-      )
-    pipelinesascode.tekton.dev/max-keep-runs: "5"
+  annotations: {"pipelinesascode.tekton.dev/on-comment": "^((/test-all)|(/build-image))", "pipelinesascode.tekton.dev/on-cel-expression": "target_branch.matches(\"^(main|release-.*|alauda-.*)$\") &&\n!last_commit_title.contains(\"Auto-commit\") &&\n(\n  \"source/**\".pathChanged() ||\n  \"image/**\".pathChanged() ||\n  \".tekton/build-image.yaml\".pathChanged() ||\n  \".tekton/pipeline/sonar-image-build\".pathChanged()\n)", "pipelinesascode.tekton.dev/max-keep-runs": "5"}
 spec:
   timeouts:
     pipeline: "2h"
-
-  pipelineRef:
-    name: sonar-image-build
-
-  params:
-    - name: git-revision
-      value:
-        url: "{{ repo_url }}"
-        branch: "{{ source_branch }}"
-        commit: "{{ revision }}"
-        pull-request-number: "{{ pull_request_number }}"
-        pull-request-source: "{{ source_branch }}"
-        pull-request-target: "{{ target_branch }}"
-    - name: clean-cache
-      value: "{{ clean-cache }}"
-
-  workspaces:
-    - name: source
-      volumeClaimTemplate:
-        spec:
-          accessModes:
-            - ReadWriteMany
-          resources:
-            requests:
-              storage: 2Gi
-    - name: basic-auth
-      secret:
-        secretName: github-credentials
-    - name: registryconfig
-      secret:
-        secretName: build-harbor.kauto.docfj
-    - name: cache
-      persistentVolumeClaim:
-        claimName: sonar-build-cache
-
   taskRunTemplate:
-    # 让所有任务都以非 root 用户运行。
+    serviceAccountName: default
+    # migration(sonarqube) P2: ns enforces PodSecurity `restricted:latest` -- added
+    # runAsUser/runAsGroup: 65532 to match the PROVEN pod-level pattern from the
+    # sibling sonarqube-ce-operator migration's succeeded PipelineRun
+    # (sonarqube-ce-operator-jcllc, taskRunTemplate.podTemplate.securityContext).
+    # fsGroup/fsGroupChangePolicy carried over unchanged from the source repo's
+    # original securityContext.
     podTemplate:
       securityContext:
         fsGroup: 65532
         fsGroupChangePolicy: "OnRootMismatch"
-
+        runAsUser: 65532
+        runAsGroup: 65532
+      imagePullSecrets:
+        - name: "{{ registry_secret }}"
   taskRunSpecs:
     - pipelineTaskName: build-sonar-app
       computeResources:
+        requests:
+          cpu: "1"
+          memory: 2Gi
         limits:
           cpu: "6"
           memory: 6Gi
     - pipelineTaskName: build-sonar-image
       computeResources:
+        requests:
+          cpu: "1"
+          memory: 2Gi
         limits:
           cpu: "2"
           memory: 2Gi
     - pipelineTaskName: build-sonar-plugin-image
       computeResources:
+        requests:
+          cpu: "1"
+          memory: 2Gi
         limits:
           cpu: "4"
           memory: 4Gi
     - pipelineTaskName: image-scan
       computeResources:
+        requests:
+          cpu: "1"
+          memory: 2Gi
         limits:
           cpu: "4"
           memory: 4Gi
+  params:
+    - name: git-url
+      value: "{{ repo_url }}"
+    - name: git-revision
+      value: "{{ source_branch }}"
+    - name: git-commit
+      value: "{{ revision }}"
+    - name: pull-request-number
+      value: "{{ pull_request_number }}"
+    - name: clean-cache
+      value: "{{ clean-cache }}"
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: sc-topolvm
+          resources:
+            requests:
+              storage: 2Gi
+    - name: basic-auth
+      csi:
+        driver: connectors-csi
+        readOnly: true
+        volumeAttributes:
+          connector.name: code-alauda-io
+          connector.namespace: alauda-devops-toolchain
+          configuration.names: "gitconfig"
+          token.expiration: 30m
+    - name: registryconfig
+      secret:
+        secretName: "{{ registry_secret }}"
+    # migration(sonarqube): per-run PVC restored-from / uploaded-to the shared S3
+    # build-cache backend by the cache-fetch/cache-upload tasks (the static PVC
+    # sonar-build-cache never existed on edge-build, which left build-sonar-app Pending;
+    # and a node-local PVC gives no cross-node cache hit anyway). Mirrors the
+    # operator-build Pipeline's go-cache workspace.
+    - name: cache
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: sc-topolvm
+          resources:
+            requests:
+              storage: 10Gi
+    # migration(sonarqube): S3 build-cache credentials -- the object-storage-build-cache
+    # Connector (bucket platform-edge-alauda-devops-toolchain-build-cache), consumed as
+    # aws-env by cache-fetch/cache-upload. Same wiring as integration-test.yaml's
+    # cache-auth and the operator-build Pipeline.
+    - name: cache-auth
+      csi:
+        driver: connectors-csi
+        readOnly: true
+        volumeAttributes:
+          configuration.names: "aws-env"
+          connectors: alauda-devops-toolchain/object-storage-build-cache
+          token.expiration: 60m
+  # migration(sonarqube): the pre-migration PipelineRun referenced a separate, in-repo
+  # custom Pipeline (.tekton/pipeline/sonar-image-build.yaml, pipelineRef: name:
+  # sonar-image-build). edge-build's PaC controller only resolves inline pipelineSpec /
+  # resolver: hub / resolver: cluster refs -- a bare pipelineRef: name pointing at a
+  # sibling YAML in the same repo is NOT one of those (RepositoryFailedToMatch; same
+  # class of gap as MIGRATION.md build-mechanics rule 4: "no dual-shape ... every PaC
+  # fix targets the inline spec"). Inlined verbatim here, mirroring the PROVEN
+  # gitlab-chart@migration-alauda-18.8.6 gitlab-component-image.yaml structure (inline
+  # pipelineSpec, workspaces/params lifted to the PipelineRun, tasks via `resolver: hub`
+  # catalog=catalog/extras). .tekton/pipeline/sonar-image-build.yaml is deleted in this
+  # patch (its content now lives here).
+  pipelineSpec:
+    params:
+      - name: git-url
+        type: string
+      - name: git-revision
+        type: string
+      - name: git-commit
+        type: string
+        default: ""
+      - name: pull-request-number
+        type: string
+        default: ""
+      - name: image-scan-gate-enabled
+        description: Determine whether to skip the image scan step
+        type: string
+        default: "false"
+      - name: sonarqube-version
+        type: string
+        default: "26.1.0.118079"
+      - name: clean-cache
+        type: string
+        default: "false"
+    workspaces:
+      - name: source
+        description: "Workspace for storing source code"
+      - name: basic-auth
+        description: "Workspace for git basic authentication"
+      - name: registryconfig
+        description: "Workspace for Container configuration"
+      - name: cache
+        description: "Workspace for cache files"
+      - name: cache-auth
+        description: "S3 build-cache backend credentials (object-storage Connector)"
+    tasks:
+      - name: git-clone
+        taskRef:
+          resolver: hub
+          params:
+            - name: catalog
+              value: extras
+            - name: kind
+              value: task
+            - name: name
+              value: git-clone
+            - name: version
+              value: "0.10"
+        timeout: 30m0s
+        params:
+          - name: url
+            value: $(params.git-url)
+          - name: revision
+            value: $(params.git-revision)
+          - name: depth
+            value: "1"
+          - name: prNumber
+            value: $(params.pull-request-number)
+        workspaces:
+          - name: output
+            workspace: source
+          - name: basic-auth
+            workspace: basic-auth
+      # migration(sonarqube): restore build-sonar-app's gradle cache from the shared S3
+      # build-cache backend before the build runs (extras/cache-fetch@0.1, the same task
+      # + wiring the operator-build Pipeline uses for its go-cache). Cache key =
+      # cacheFrom (repo url) + a hash of cachePatterns (the gradle dependency-defining
+      # files) -- a coarse key so most of the cache stays warm across commits; gradle
+      # itself reconciles any stale entries. `fetched`/`cacheSource` results feed
+      # cache-upload in `finally`.
+      - name: cache-fetch
+        timeout: 20m
+        retries: 1
+        runAfter:
+          - git-clone
+        taskRef:
+          resolver: hub
+          params:
+            - name: catalog
+              value: extras
+            - name: kind
+              value: task
+            - name: name
+              value: cache-fetch
+            - name: version
+              value: "0.1"
+        params:
+          - name: cacheFrom
+            value: $(params.git-url)
+          - name: cachePatterns
+            value: "source/gradle/wrapper/gradle-wrapper.properties,source/build.gradle,source/settings.gradle,source/gradle.properties"
+        workspaces:
+          - name: source
+            workspace: source
+          - name: cache
+            workspace: cache
+          - name: cache-auth
+            workspace: cache-auth
+      # migration(sonarqube) P1 correction: registry.alauda.cn:60070/devops/nonroot/
+      # chainguard/git:latest (the previous "fix", carried over from the in-cluster
+      # clone-image-build-test-scan Pipeline CR's calculate-commit-sha task) is NOT
+      # reliably reachable from edge-build nodes -- live smoke (sonar-image-9rfp6)
+      # showed TaskRunImagePullFailed / ImagePullBackOff: "dial tcp
+      # 192.168.144.140:60070: i/o timeout" resolving that exact path. Sibling paths
+      # under the same host (e.g. devops/tektoncd/hub/git-init:v1.1, used by git-clone)
+      # DO pull, because they're pre-warmed in a local mirror (10.68.112.92) --
+      # uncached paths on that host hit a real, timing-out network route. Replaced with
+      # registry-dev.alauda.io/platform-edge/tekton-catalog-incubator/script-tools:latest,
+      # confirmed reachable AND sufficient by an in-cluster probe pod
+      # (alauda-devops-toolchain-build/probe-script-tools): pulled in 228ms, contains
+      # git 2.53.0 + bash 5.3.9, and defaults to uid 65532 (nonroot) -- also satisfies
+      # Fix 2's securityContext requirement for this step. Task itself
+      # (catalog=catalog/run-script@0.1, resolver:hub) is unchanged -- already proven
+      # live.
+      - name: get-git-meta
+        timeout: 10m
+        retries: 0
+        runAfter:
+          - git-clone
+        taskRef:
+          resolver: hub
+          params:
+            - name: catalog
+              value: catalog
+            - name: kind
+              value: task
+            - name: name
+              value: run-script
+            - name: version
+              value: "0.1"
+        workspaces:
+          - name: source
+            workspace: source
+        params:
+          - name: image
+            value: registry-dev.alauda.io/platform-edge/tekton-catalog-incubator/script-tools:latest
+          - name: imagePullPolicy
+            value: Always
+          - name: script
+            value: |
+              #!/bin/bash
+              set -e
+
+              git config --global --add safe.directory $(workspaces.source.path)
+
+              cat <<EOF > $(results.object-result.path)
+              {
+                "commit_date": "$(git log -1 --pretty=%ct)",
+                "commit_sha": "$(git rev-parse HEAD)",
+                "short_id": "$(git rev-parse --short HEAD)",
+                "message": "gitlab commit meta"
+              }
+              EOF
+      - name: build-sonar-app
+        timeout: 60m
+        retries: 0
+        runAfter:
+          - git-clone
+          - cache-fetch
+        params:
+          - name: script
+            value: |
+              #!/bin/bash
+              set -e
+
+              # Cache ONLY the expensive dependency downloads (caches/modules-2 + the
+              # gradle wrapper dists) via the S3 build cache -- NOT gradle's volatile
+              # build-cache / generated-gradle-jars / daemon state. Restoring the whole
+              # ~/.gradle inconsistently broke buildSrc:compileGroovy ("unable to resolve
+              # org.gradle.api.tasks.testing.Test") on a warm cache while a cold cache
+              # built fine (57zt8 ok / h6pjq failed). cache-fetch restores these dirs into
+              # $(workspaces.cache.path)/gradle/*; drop any legacy whole-.gradle dir first.
+              rm -rf $(workspaces.cache.path)/cache
+              mkdir -p $(workspaces.cache.path)/gradle/modules-2 $(workspaces.cache.path)/gradle/wrapper
+              mkdir -p $HOME/.gradle/caches
+              ln -sfn $(workspaces.cache.path)/gradle/modules-2 $HOME/.gradle/caches/modules-2
+              ln -sfn $(workspaces.cache.path)/gradle/wrapper $HOME/.gradle/wrapper
+
+              if [ "$(params.clean-cache)" == "true" ]; then
+                rm -rf $(workspaces.cache.path)/gradle/modules-2/* $(workspaces.cache.path)/gradle/wrapper/*
+              fi
+
+              export SONARQUBE_VERSION=$(params.sonarqube-version)
+              export BUILD_NUMBER="${SONARQUBE_VERSION##*.}"
+
+              git config --global --add safe.directory $(workspaces.source.path)
+
+              # --build-cache dropped: we persist only the dependency cache (modules-2),
+              # not build-task outputs, and --build-cache otherwise keeps trying the
+              # upstream remote cache (develocity.sonar.build, unreachable from edge-build)
+              # every run.
+              cd $(workspaces.source.path)/source
+              ./gradlew clean build -DbuildNumber="$BUILD_NUMBER" -x test --console plain --max-workers=4 --info;
+
+              ls -alh sonar-application/build/distributions
+        workspaces:
+          - name: source
+            workspace: source
+          - name: cache
+            workspace: cache
+        taskSpec:
+          workspaces:
+            - name: source
+            - name: cache
+          params:
+            - name: script
+              description: >-
+                Customized script to execute. The task will enforce running the script as a non-root user. If the image used in this task defaults to starting with the root user, additional configuration will be required to set up a non-root user. Please refer to the task's README.md document for details.
+              type: string
+              default:
+          steps:
+            - name: run-script
+              # migration(sonarqube) Decision A (driver), resolves the prior FLAGGED
+              # comment here: the apt/node/temurin-8/yarn/java.security root setup this
+              # step used to run inline is now pre-baked at BUILD time into a custom base
+              # image (image/app-base/Containerfile, built+pushed by
+              # .tekton/build-app-base-image.yaml via buildctl) instead of at pipeline
+              # RUNTIME -- the ns's PodSecurity `restricted:latest` forbids root
+              # unconditionally, and root was never obtainable here. This step now only
+              # runs `./gradlew` as nonroot against that pre-baked image.
+              # ORDERING DEPENDENCY: sonarqube-ce-app-base:latest must already be
+              # published (fire build-app-base-image.yaml at least once) before this step
+              # can pull it.
+              image: "{{ registry_url }}/alauda-devops-toolchain/sonarqube/sonarqube-ce-app-base:latest"
+              imagePullPolicy: Always
+              # migration(sonarqube) P2: ns enforces PodSecurity `restricted:latest` --
+              # this step now runs nonroot (uid 65532, matching the base image's USER and
+              # the pod-level securityContext convention used elsewhere in this file).
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 65532
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                seccompProfile:
+                  type: RuntimeDefault
+              computeResources:
+                requests:
+                  cpu: "1"
+                  memory: "1Gi"
+                limits:
+                  cpu: "4"
+                  memory: "4Gi"
+              script: |
+                #!/bin/sh
+                RUN_ON=`cat /proc/$$/comm`
+                if [ "$RUN_ON" != "bash" ] && command -v bash >/dev/null 2>&1; then
+                    exec bash "$0" $@
+                fi
+                set -eu
+
+                $(params.script)
+      - name: build-sonar-image
+        timeout: 1h
+        retries: 2
+        taskRef:
+          resolver: hub
+          params:
+            - name: catalog
+              value: extras
+            - name: kind
+              value: task
+            - name: name
+              value: buildctl
+            - name: version
+              value: "0.1"
+        runAfter:
+          - build-sonar-app
+        workspaces:
+          - name: source
+            workspace: source
+          - name: registry-config
+            workspace: registryconfig
+        params:
+          - name: reuseArtifact
+            value: "false"
+          # migration(sonarqube) P1: build-harbor.alauda.cn/devops/sonarqube ->
+          # {{ registry_url }}/alauda-devops-toolchain/sonarqube/sonarqube-community-build
+          # (output-image-path convention, parallels sonarqube-ce-operator /
+          # alauda-devops-toolchain/gitlab/*).
+          - name: imageURL
+            value: "{{ registry_url }}/alauda-devops-toolchain/sonarqube/sonarqube-community-build"
+          - name: imageTags
+            value:
+              - v2026.1.0-g$(tasks.get-git-meta.results.object-result.short_id)
+          - name: containerfile
+            value: image/community-build/Containerfile
+          - name: context
+            value: .
+          # multi-arch by default (MIGRATION.md rule 9a) -- verify-at-smoke that the
+          # legacy image was in fact multi-arch (chart/values.yaml:
+          # global.images.sonarqube.support_arm: true confirms it was).
+          - name: platform
+            value:
+              - linux/amd64
+              - linux/arm64
+          - name: labels
+            value:
+              - ns=$(context.taskRun.namespace)
+              - branch=$(params.git-revision)
+              - commit=$(tasks.git-clone.results.commit)
+              - org.opencontainers.image.source=alauda-devops-toolchain/sonarqube-community-build
+              - org.opencontainers.image.revision=$(tasks.git-clone.results.commit)
+              - io.alauda.git.repo-path=alauda-devops-toolchain/sonarqube-community-build
+          - name: extraArgs
+            value:
+              - --build-arg
+              - SONARQUBE_VERSION=$(params.sonarqube-version)
+      - name: build-sonar-plugin-image
+        timeout: 1h
+        retries: 2
+        taskRef:
+          resolver: hub
+          params:
+            - name: catalog
+              value: extras
+            - name: kind
+              value: task
+            - name: name
+              value: buildctl
+            - name: version
+              value: "0.1"
+        runAfter:
+          - git-clone
+        workspaces:
+          - name: source
+            workspace: source
+          - name: registry-config
+            workspace: registryconfig
+        params:
+          - name: reuseArtifact
+            value: "false"
+          # migration(sonarqube) P1: build-harbor.alauda.cn/devops/sonarqube-plugins ->
+          # {{ registry_url }}/alauda-devops-toolchain/sonarqube/sonarqube-community-build-plugins
+          - name: imageURL
+            value: "{{ registry_url }}/alauda-devops-toolchain/sonarqube/sonarqube-community-build-plugins"
+          - name: imageTags
+            value:
+              - v2026.1.0-g$(tasks.get-git-meta.results.object-result.short_id)
+          # migration(sonarqube) 2026: the plugin Containerfile ADDs image/plugin/plugins.txt
+          # and COPYs image/community-build/patch-lodash-cve-2025-13465.py -- both
+          # repo-root-relative, so the build context must be the repo root (.) and the
+          # containerfile path fully-qualified (unlike the 2025 image/plugin-context form).
+          - name: containerfile
+            value: image/plugin/Containerfile
+          - name: context
+            value: .
+          - name: platform
+            value:
+              - linux/amd64
+              - linux/arm64
+          - name: labels
+            value:
+              - ns=$(context.taskRun.namespace)
+              - branch=$(params.git-revision)
+              - commit=$(tasks.git-clone.results.commit)
+              - org.opencontainers.image.source=alauda-devops-toolchain/sonarqube-community-build
+              - org.opencontainers.image.revision=$(tasks.git-clone.results.commit)
+              - io.alauda.git.repo-path=alauda-devops-toolchain/sonarqube-community-build
+      # migration(sonarqube): `resolver: katanomi.hub` (the legacy in-cluster Katanomi
+      # hub-shim used by the OLD business-build cluster) does not exist on edge-build --
+      # same class of gap as the type:tekton hub (edge-build-hub-resolver-gap). Replaced
+      # with the Catalog's proven `trivy-scanner` task (task.trivy-scanner, catalog
+      # "catalog", version 0.6 -- resolver: hub works for TASKS on edge-build, only the
+      # type:tekton PIPELINE hub is broken). Params remapped from the old
+      # trivy-image-scan contract (targets/quality-gate-rules/quality-gate/scan-flags)
+      # to trivy-scanner's own (scanTargets/severity/ignoreUnfixed/skipDbUpdate).
+      # SCOPE REDUCTION (recorded, 🟢 repo-local/reversible): the old
+      # `image-scan-gate-enabled` param toggled whether findings fail the pipeline
+      # (quality-gate); it defaulted to "false" (non-blocking) and nothing in this
+      # dataset overrides it, so dropping the toggle preserves the OBSERVED default
+      # behavior (report-only, non-blocking) with a smaller param surface. If the
+      # driver wants the enable/disable knob restored, re-add it as a conditional
+      # `exitCode` value here -- flagged as an open question, not decided silently.
+      - name: image-scan
+        timeout: 60m
+        retries: 2
+        runAfter:
+          - build-sonar-image
+          - build-sonar-plugin-image
+        taskRef:
+          resolver: hub
+          params:
+            - name: catalog
+              value: catalog
+            - name: kind
+              value: task
+            - name: name
+              value: trivy-scanner
+            - name: version
+              value: "0.6"
+        workspaces:
+          - name: registry-config
+            workspace: registryconfig
+        params:
+          - name: scanType
+            value: image
+          - name: scanTargets
+            value:
+              - $(tasks.build-sonar-image.results.IMAGE_URLS[0])
+              - $(tasks.build-sonar-plugin-image.results.IMAGE_URLS[0])
+          - name: severity
+            value:
+              - HIGH
+              - CRITICAL
+          - name: ignoreUnfixed
+            value: "true"
+          - name: skipDbUpdate
+            value: "false"
+    # migration(sonarqube): save build-sonar-app's gradle cache back to the shared S3
+    # build-cache backend after a successful build (extras/cache-upload@0.1, the same
+    # finally task the operator-build Pipeline uses). Guarded on build-sonar-app success
+    # so a failed build never poisons the cache; cacheSource/fetched are threaded from
+    # cache-fetch.
+    finally:
+      - name: cache-upload
+        timeout: 20m
+        retries: 1
+        when:
+          - input: $(tasks.build-sonar-app.status)
+            operator: in
+            values:
+              - Succeeded
+        taskRef:
+          resolver: hub
+          params:
+            - name: catalog
+              value: extras
+            - name: kind
+              value: task
+            - name: name
+              value: cache-upload
+            - name: version
+              value: "0.1"
+        params:
+          - name: cacheSource
+            value: $(tasks.cache-fetch.results.cacheSource)
+          - name: fetched
+            value: $(tasks.cache-fetch.results.fetched)
+          - name: cachePatterns
+            value: "source/gradle/wrapper/gradle-wrapper.properties,source/build.gradle,source/settings.gradle,source/gradle.properties"
+        workspaces:
+          - name: source
+            workspace: source
+          - name: cache
+            workspace: cache
+          - name: cache-auth
+            workspace: cache-auth

@@ -1,0 +1,170 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: sonar-app-base-image
+  annotations: {"pipelinesascode.tekton.dev/on-comment": "^((/test-all)|(/build-app-base-image))$", "pipelinesascode.tekton.dev/on-cel-expression": "target_branch.matches(\"^(main|release-.*|alauda-.*)$\") &&\n!last_commit_title.contains(\"Auto-commit\") &&\n(\n  \"image/app-base/**\".pathChanged() ||\n  \".tekton/build-app-base-image.yaml\".pathChanged()\n)", "pipelinesascode.tekton.dev/max-keep-runs": "5"}
+spec:
+  timeouts:
+    pipeline: "2h"
+  taskRunTemplate:
+    serviceAccountName: default
+    # migration(sonarqube): mirrors .tekton/build-testing-base-image.yaml's pod-level
+    # nonroot securityContext (same PROVEN pattern, ns enforces PodSecurity
+    # `restricted:latest`).
+    podTemplate:
+      securityContext:
+        fsGroup: 65532
+        fsGroupChangePolicy: "OnRootMismatch"
+        runAsUser: 65532
+        runAsGroup: 65532
+      imagePullSecrets:
+        - name: "{{ registry_secret }}"
+  taskRunSpecs:
+    - pipelineTaskName: build-app-base-image
+      computeResources:
+        requests:
+          cpu: "1"
+          memory: 2Gi
+        limits:
+          cpu: "4"
+          memory: 4Gi
+  params:
+    - name: git-url
+      value: "{{ repo_url }}"
+    - name: git-revision
+      value: "{{ source_branch }}"
+    - name: git-commit
+      value: "{{ revision }}"
+    - name: pull-request-number
+      value: "{{ pull_request_number }}"
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: sc-topolvm
+          resources:
+            requests:
+              storage: 1Gi
+    - name: basic-auth
+      csi:
+        driver: connectors-csi
+        readOnly: true
+        volumeAttributes:
+          connector.name: code-alauda-io
+          connector.namespace: alauda-devops-toolchain
+          configuration.names: "gitconfig"
+          token.expiration: 30m
+    - name: registryconfig
+      secret:
+        secretName: "{{ registry_secret }}"
+  # migration(sonarqube) Decision A (driver): builds+pushes the custom base image that
+  # pre-bakes build-sonar-app's root setup (image/app-base/Containerfile), so that step
+  # can run nonroot under the ns's PodSecurity `restricted:latest`. A separate PaC
+  # pipeline from build-image.yaml, on its own on-cel path trigger + /build-app-base-image
+  # comment trigger -- same shape convention (podTemplate securityContext, connectors,
+  # workspaces, on-cel/on-comment/max-keep-runs annotations) as this repo's own
+  # build-testing-base-image.yaml, but with an inline git-clone + buildctl pipelineSpec
+  # (same tasks/versions build-image.yaml's build-sonar-image task already uses:
+  # extras/git-clone@0.10, extras/buildctl@0.1) rather than the shared in-cluster
+  # clone-image-build-test-scan Pipeline, since this is a single Containerfile build with
+  # no test/scan stage.
+  #
+  # ORDERING DEPENDENCY (for the coordinator): this pipeline must be fired at least once
+  # (comment `/build-app-base-image` on a PR/MR against this branch) to publish
+  # sonarqube-ce-app-base:latest BEFORE build-image.yaml's build-sonar-app task can pull
+  # it -- that task's step now references this image directly (no fallback).
+  pipelineSpec:
+    params:
+      - name: git-url
+        type: string
+      - name: git-revision
+        type: string
+      - name: git-commit
+        type: string
+        default: ""
+      - name: pull-request-number
+        type: string
+        default: ""
+    workspaces:
+      - name: source
+        description: "Workspace for storing source code"
+      - name: basic-auth
+        description: "Workspace for git basic authentication"
+      - name: registryconfig
+        description: "Workspace for Container configuration"
+    tasks:
+      - name: git-clone
+        taskRef:
+          resolver: hub
+          params:
+            - name: catalog
+              value: extras
+            - name: kind
+              value: task
+            - name: name
+              value: git-clone
+            - name: version
+              value: "0.10"
+        timeout: 30m0s
+        params:
+          - name: url
+            value: $(params.git-url)
+          - name: revision
+            value: $(params.git-revision)
+          - name: depth
+            value: "1"
+          - name: prNumber
+            value: $(params.pull-request-number)
+        workspaces:
+          - name: output
+            workspace: source
+          - name: basic-auth
+            workspace: basic-auth
+      - name: build-app-base-image
+        timeout: 45m
+        retries: 1
+        taskRef:
+          resolver: hub
+          params:
+            - name: catalog
+              value: extras
+            - name: kind
+              value: task
+            - name: name
+              value: buildctl
+            - name: version
+              value: "0.1"
+        runAfter:
+          - git-clone
+        workspaces:
+          - name: source
+            workspace: source
+          - name: registry-config
+            workspace: registryconfig
+        params:
+          - name: reuseArtifact
+            value: "false"
+          # migration(sonarqube) P1: output-image-path convention shared with
+          # build-image.yaml's build-sonar-image/build-sonar-plugin-image tasks.
+          - name: imageURL
+            value: "{{ registry_url }}/alauda-devops-toolchain/sonarqube/sonarqube-ce-app-base"
+          - name: imageTags
+            value:
+              - latest
+          - name: containerfile
+            value: image/app-base/Containerfile
+          - name: context
+            value: .
+          - name: platform
+            value:
+              - linux/amd64
+          - name: labels
+            value:
+              - ns=$(context.taskRun.namespace)
+              - branch=$(params.git-revision)
+              - commit=$(tasks.git-clone.results.commit)
+              - org.opencontainers.image.source=alauda-devops-toolchain/sonarqube-community-build
+              - org.opencontainers.image.revision=$(tasks.git-clone.results.commit)
+              - io.alauda.git.repo-path=alauda-devops-toolchain/sonarqube-community-build
