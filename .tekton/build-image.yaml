@@ -533,6 +533,82 @@ spec:
             value: "true"
           - name: skipDbUpdate
             value: "false"
+      # migration(sonarqube): re-add the post-build chart auto-commit that the
+      # pre-migration pipeline did via extras/git-cli@0.4 (absent on edge-build). The
+      # WORKING version is catalog/git-cli@0.5 (the shared clone-image-build-test-scan
+      # Pipeline's `commit` task uses exactly this). baseImage overridden to the
+      # reachable script-tools (git-cli@0.5's default registry.alauda.cn:60070/chainguard
+      # /git ImagePullBackOffs on edge-build -- same gap as get-git-meta). The task
+      # sets up the basic-auth creds, then runs this gitScript: bump the chart's
+      # sonarqube + pluginPackage TAGS (the chart template uses .tag, not .digest -- see
+      # chart/templates/_alauda.tpl) to this build's v2026.1.0-g<sha> and commit.
+      # ANTI-RETRIGGER: the commit title contains "Auto-commit", which build-image's
+      # on-cel `!last_commit_title.contains("Auto-commit")` skips; build-image also does
+      # not watch chart/** so a chart-only commit can't trigger it either.
+      - name: update-chart-values
+        timeout: 20m
+        retries: 1
+        runAfter:
+          - image-scan
+        # only auto-commit on a real push to the release branch, never on an MR/PR
+        # build (the chart shouldn't move until the images are actually merged+built).
+        when:
+          - input: $(params.pull-request-number)
+            operator: in
+            values:
+              - ""
+              - " "
+        taskRef:
+          resolver: hub
+          params:
+            - name: catalog
+              value: catalog
+            - name: kind
+              value: task
+            - name: name
+              value: git-cli
+            - name: version
+              value: "0.5"
+        workspaces:
+          - name: source
+            workspace: source
+          - name: basic-auth
+            workspace: basic-auth
+        params:
+          - name: baseImage
+            value: registry-dev.alauda.io/platform-edge/tekton-catalog-incubator/script-tools:latest
+          - name: gitUserName
+            value: "Alauda Bot"
+          - name: gitUserEmail
+            value: "alaudabot@alauda.io"
+          - name: userHome
+            value: "/tmp"
+          - name: verbose
+            value: "true"
+          - name: gitScript
+            value: |
+              set -ex
+              cd $(workspaces.source.path)
+              git config --global --add safe.directory $(workspaces.source.path)
+
+              TAG="v2026.1.0-g$(tasks.get-git-meta.results.object-result.short_id)"
+
+              # chart template (_alauda.tpl) builds the image ref as
+              # registry.address/repository:tag -> bump only the tag. update-image-tag.sh
+              # matches by repository name (devops/sonarqube, devops/sonarqube-plugins,
+              # the chart's product-path entries) and rewrites the following tag: line.
+              bash ./hack/update-image-tag.sh devops/sonarqube:${TAG} chart/values.yaml
+              bash ./hack/update-image-tag.sh devops/sonarqube-plugins:${TAG} chart/values.yaml
+
+              if git diff --quiet -- chart/values.yaml; then
+                echo "chart/values.yaml already at ${TAG}; nothing to commit"
+                exit 0
+              fi
+
+              git add chart/values.yaml
+              git -c user.name="Alauda Bot" -c user.email="alaudabot@alauda.io" \
+                commit -m "Auto-commit by alaudabot in edge [ci skip] - update chart image tags to ${TAG}"
+              git push origin HEAD:$(params.git-revision)
     # migration(sonarqube): save build-sonar-app's gradle cache back to the shared S3
     # build-cache backend after a successful build (extras/cache-upload@0.1, the same
     # finally task the operator-build Pipeline uses). Guarded on build-sonar-app success
