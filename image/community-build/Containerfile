@@ -1,4 +1,4 @@
-FROM hub-mirrors.alauda.cn/library/eclipse-temurin:21-jdk-noble AS builder
+FROM docker.io/library/eclipse-temurin:21-jdk-noble AS builder
 
 ENV LANG='en_US.UTF-8' \
     LANGUAGE='en_US:en' \
@@ -113,7 +113,7 @@ RUN set +e; \
   ls -d /usr/bin/* | grep -E "cpp|readelf|gcc|nc|netcat" | xargs rm; \
   rm /usr/lib/apt/methods/mirror
 
-FROM hub-mirrors.alauda.cn/library/eclipse-temurin:21-jdk-noble
+FROM docker.io/library/eclipse-temurin:21-jdk-noble
 
 COPY --from=builder / /
 

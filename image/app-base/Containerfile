@@ -1,0 +1,68 @@
+# migration(sonarqube) Decision A (driver): pre-bake the build-sonar-app root setup
+# (apt keyrings + node18 + system packages + temurin-8-jdk + yarn + the java.security
+# sed) into this custom base image at BUILD time, so the .tekton/build-image.yaml
+# build-sonar-app step only ever has to run `./gradlew` as nonroot -- the
+# alauda-devops-toolchain-build namespace enforces PodSecurity `restricted:latest`,
+# which forbids root unconditionally. Built + pushed by this repo's own
+# .tekton/build-app-base-image.yaml (buildctl), consumed as
+# {{ registry_url }}/alauda-devops-toolchain/sonarqube/sonarqube-ce-app-base:latest.
+#
+# 2026 line: the pre-migration build-sonar-app step used
+# hub-mirrors.alauda.cn/library/eclipse-temurin:21-jdk-noble as its base and installed
+# these packages inline. hub-mirrors is unreachable from edge-build -> docker.io/library
+# (proven reachable on the 2025 migration branch). JDK 21 matches
+# image/community-build/Containerfile's builder/runtime base (SonarQube 2026.1 builds on
+# Java 21), with temurin-8-jdk also installed for the legacy toolchain the gradle build
+# still shells out to.
+# renovate: datasource=docker depName=eclipse-temurin
+FROM docker.io/library/eclipse-temurin:21-jdk-noble
+
+# source: https://github.com/SonarSource/sonarqube/blob/170bd61e5e75fb3668dd31dc71570f5e40a800fd/.cirrus/Dockerfile#L1
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN echo 'Acquire::AllowReleaseInfoChange::Suite "true";' > /etc/apt/apt.conf.d/allow_release_info_change.conf
+
+# https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=863199#23
+RUN mkdir -p /usr/share/man/man1 \
+  && apt-get update \
+  && apt-get -y install --no-install-recommends \
+    lsb-release \
+    ca-certificates \
+    curl \
+    wget \
+    gnupg
+
+# migration(sonarqube): egress verified reachable from the edge-build BUILD cluster on
+# the 2025 migration branch (deb.nodesource.com, packages.atlassian.com,
+# packages.adoptium.net all resolve+download cleanly). URLs preserved verbatim from the
+# pre-migration script. DISTRO resolves to `noble` (Ubuntu 24.04) on this base.
+ARG NODE_MAJOR=18
+RUN mkdir -p /etc/apt/keyrings \
+  && DISTRO="$(lsb_release -s -c)" \
+  && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+  && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" >> /etc/apt/sources.list.d/nodesource.list \
+  && curl -sSL https://packages.atlassian.com/api/gpg/key/public | gpg --dearmor -o /etc/apt/keyrings/atlassian.gpg \
+  && echo "deb [signed-by=/etc/apt/keyrings/atlassian.gpg] https://packages.atlassian.com/debian/atlassian-sdk-deb/ stable contrib" >> /etc/apt/sources.list.d/atlassian-sdk.list \
+  && curl -sSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /etc/apt/keyrings/adoptium-archive-keyring.gpg \
+  && echo "deb [signed-by=/etc/apt/keyrings/adoptium-archive-keyring.gpg] https://packages.adoptium.net/artifactory/deb ${DISTRO} main" >> /etc/apt/sources.list.d/adoptopenjdk.list \
+  && apt-get update \
+  && apt-get -y install --no-install-recommends \
+    git \
+    unzip \
+    nodejs="${NODE_MAJOR}".* \
+    jq \
+    expect \
+    temurin-8-jdk \
+    xmlstarlet \
+  && npm install -g yarn \
+  && sed -i 's|securerandom.source=file:/dev/random|securerandom.source=file:/dev/urandom|g' "$JAVA_HOME/conf/security/java.security" \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
+
+# non-root runtime user -- matches the ns's PodSecurity `restricted:latest` and the
+# uid (65532) the rest of this repo's migrated pipelines standardize on (e.g.
+# .tekton/build-image.yaml taskRunTemplate.podTemplate.securityContext).
+RUN mkdir -p /home/nonroot \
+  && chown -R 65532:65532 /home/nonroot
+ENV HOME=/home/nonroot
+USER 65532
