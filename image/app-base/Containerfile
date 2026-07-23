@@ -15,7 +15,7 @@
 # Java 21), with temurin-8-jdk also installed for the legacy toolchain the gradle build
 # still shells out to.
 # renovate: datasource=docker depName=eclipse-temurin
-FROM docker.io/library/eclipse-temurin:21-jdk-noble
+FROM registry-cache.alauda.io/library/eclipse-temurin:21-jdk-noble
 
 # source: https://github.com/SonarSource/sonarqube/blob/170bd61e5e75fb3668dd31dc71570f5e40a800fd/.cirrus/Dockerfile#L1
 ENV DEBIAN_FRONTEND=noninteractive

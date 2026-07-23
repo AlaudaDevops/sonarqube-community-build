@@ -1,4 +1,4 @@
-FROM docker.io/library/eclipse-temurin:21-jdk-noble AS builder
+FROM registry-cache.alauda.io/library/eclipse-temurin:21-jdk-noble AS builder
 
 ENV LANG='en_US.UTF-8' \
     LANGUAGE='en_US:en' \
@@ -52,8 +52,8 @@ RUN set -eux; \
         libcap2 \
         sed;
 
-COPY --chown=sonarsource:sonarsource source/sonar-application/build/distributions/sonar-application-${SONARQUBE_VERSION}.zip /home/sonarsource/
-COPY --chown=sonarsource:sonarsource --chmod=555 image/community-build/jar-tools.sh /tmp/jar-tools.sh
+COPY --chown=sonarqube:sonarqube source/sonar-application/build/distributions/sonar-application-${SONARQUBE_VERSION}.zip /home/sonarsource/
+COPY --chown=sonarqube:sonarqube --chmod=555 image/community-build/jar-tools.sh /tmp/jar-tools.sh
 
 RUN set -eux; \
     echo "networkaddress.cache.ttl=5" >> "${JAVA_HOME}/conf/security/java.security"; \
@@ -119,7 +119,7 @@ RUN set +e; \
   ls -d /usr/bin/* | grep -E "cpp|readelf|gcc|nc|netcat" | xargs rm; \
   rm /usr/lib/apt/methods/mirror
 
-FROM docker.io/library/eclipse-temurin:21-jdk-noble
+FROM registry-cache.alauda.io/library/eclipse-temurin:21-jdk-noble
 
 COPY --from=builder / /
 
