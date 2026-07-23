@@ -88,9 +88,32 @@ spec:
     - name: registryconfig
       secret:
         secretName: "{{ registry_secret }}"
+    # migration(sonarqube): per-run PVC restored-from / uploaded-to the shared S3
+    # build-cache backend by the cache-fetch/cache-upload tasks (the static PVC
+    # sonar-build-cache never existed on edge-build, which left build-sonar-app Pending;
+    # and a node-local PVC gives no cross-node cache hit anyway). Mirrors the
+    # operator-build Pipeline's go-cache workspace.
     - name: cache
-      persistentVolumeClaim:
-        claimName: sonar-build-cache
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: sc-topolvm
+          resources:
+            requests:
+              storage: 10Gi
+    # migration(sonarqube): S3 build-cache credentials -- the object-storage-build-cache
+    # Connector (bucket platform-edge-alauda-devops-toolchain-build-cache), consumed as
+    # aws-env by cache-fetch/cache-upload. Same wiring as integration-test.yaml's
+    # cache-auth and the operator-build Pipeline.
+    - name: cache-auth
+      csi:
+        driver: connectors-csi
+        readOnly: true
+        volumeAttributes:
+          configuration.names: "aws-env"
+          connectors: alauda-devops-toolchain/object-storage-build-cache
+          token.expiration: 60m
   # migration(sonarqube): the pre-migration PipelineRun referenced a separate, in-repo
   # custom Pipeline (.tekton/pipeline/sonar-image-build.yaml, pipelineRef: name:
   # sonar-image-build). edge-build's PaC controller only resolves inline pipelineSpec /
@@ -133,6 +156,8 @@ spec:
         description: "Workspace for Container configuration"
       - name: cache
         description: "Workspace for cache files"
+      - name: cache-auth
+        description: "S3 build-cache backend credentials (object-storage Connector)"
     tasks:
       - name: git-clone
         taskRef:
@@ -161,6 +186,41 @@ spec:
             workspace: source
           - name: basic-auth
             workspace: basic-auth
+      # migration(sonarqube): restore build-sonar-app's gradle cache from the shared S3
+      # build-cache backend before the build runs (extras/cache-fetch@0.1, the same task
+      # + wiring the operator-build Pipeline uses for its go-cache). Cache key =
+      # cacheFrom (repo url) + a hash of cachePatterns (the gradle dependency-defining
+      # files) -- a coarse key so most of the cache stays warm across commits; gradle
+      # itself reconciles any stale entries. `fetched`/`cacheSource` results feed
+      # cache-upload in `finally`.
+      - name: cache-fetch
+        timeout: 20m
+        retries: 1
+        runAfter:
+          - git-clone
+        taskRef:
+          resolver: hub
+          params:
+            - name: catalog
+              value: extras
+            - name: kind
+              value: task
+            - name: name
+              value: cache-fetch
+            - name: version
+              value: "0.1"
+        params:
+          - name: cacheFrom
+            value: $(params.git-url)
+          - name: cachePatterns
+            value: "source/gradle/wrapper/gradle-wrapper.properties,source/build.gradle,source/settings.gradle,source/gradle.properties"
+        workspaces:
+          - name: source
+            workspace: source
+          - name: cache
+            workspace: cache
+          - name: cache-auth
+            workspace: cache-auth
       # migration(sonarqube) P1 correction: registry.alauda.cn:60070/devops/nonroot/
       # chainguard/git:latest (the previous "fix", carried over from the in-cluster
       # clone-image-build-test-scan Pipeline CR's calculate-commit-sha task) is NOT
@@ -221,13 +281,17 @@ spec:
         retries: 0
         runAfter:
           - git-clone
+          - cache-fetch
         params:
           - name: script
             value: |
               #!/bin/bash
               set -e
 
-              ln -s $(workspaces.cache.path)/cache $HOME/.gradle
+              # cache-fetch may have already restored $(workspaces.cache.path)/cache from
+              # S3; mkdir -p + ln -sfn is idempotent whether it exists or not.
+              mkdir -p $(workspaces.cache.path)/cache
+              ln -sfn $(workspaces.cache.path)/cache $HOME/.gradle
 
               if [ "$(params.clean-cache)" == "true" ]; then
                 rm -rf $HOME/.gradle/caches/*
@@ -457,3 +521,42 @@ spec:
             value: "true"
           - name: skipDbUpdate
             value: "false"
+    # migration(sonarqube): save build-sonar-app's gradle cache back to the shared S3
+    # build-cache backend after a successful build (extras/cache-upload@0.1, the same
+    # finally task the operator-build Pipeline uses). Guarded on build-sonar-app success
+    # so a failed build never poisons the cache; cacheSource/fetched are threaded from
+    # cache-fetch.
+    finally:
+      - name: cache-upload
+        timeout: 20m
+        retries: 1
+        when:
+          - input: $(tasks.build-sonar-app.status)
+            operator: in
+            values:
+              - Succeeded
+        taskRef:
+          resolver: hub
+          params:
+            - name: catalog
+              value: extras
+            - name: kind
+              value: task
+            - name: name
+              value: cache-upload
+            - name: version
+              value: "0.1"
+        params:
+          - name: cacheSource
+            value: $(tasks.cache-fetch.results.cacheSource)
+          - name: fetched
+            value: $(tasks.cache-fetch.results.fetched)
+          - name: cachePatterns
+            value: "source/gradle/wrapper/gradle-wrapper.properties,source/build.gradle,source/settings.gradle,source/gradle.properties"
+        workspaces:
+          - name: source
+            workspace: source
+          - name: cache
+            workspace: cache
+          - name: cache-auth
+            workspace: cache-auth
