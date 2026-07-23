@@ -288,13 +288,21 @@ spec:
               #!/bin/bash
               set -e
 
-              # cache-fetch may have already restored $(workspaces.cache.path)/cache from
-              # S3; mkdir -p + ln -sfn is idempotent whether it exists or not.
-              mkdir -p $(workspaces.cache.path)/cache
-              ln -sfn $(workspaces.cache.path)/cache $HOME/.gradle
+              # Cache ONLY the expensive dependency downloads (caches/modules-2 + the
+              # gradle wrapper dists) via the S3 build cache -- NOT gradle's volatile
+              # build-cache / generated-gradle-jars / daemon state. Restoring the whole
+              # ~/.gradle inconsistently broke buildSrc:compileGroovy ("unable to resolve
+              # org.gradle.api.tasks.testing.Test") on a warm cache while a cold cache
+              # built fine (57zt8 ok / h6pjq failed). cache-fetch restores these dirs into
+              # $(workspaces.cache.path)/gradle/*; drop any legacy whole-.gradle dir first.
+              rm -rf $(workspaces.cache.path)/cache
+              mkdir -p $(workspaces.cache.path)/gradle/modules-2 $(workspaces.cache.path)/gradle/wrapper
+              mkdir -p $HOME/.gradle/caches
+              ln -sfn $(workspaces.cache.path)/gradle/modules-2 $HOME/.gradle/caches/modules-2
+              ln -sfn $(workspaces.cache.path)/gradle/wrapper $HOME/.gradle/wrapper
 
               if [ "$(params.clean-cache)" == "true" ]; then
-                rm -rf $HOME/.gradle/caches/*
+                rm -rf $(workspaces.cache.path)/gradle/modules-2/* $(workspaces.cache.path)/gradle/wrapper/*
               fi
 
               export SONARQUBE_VERSION=$(params.sonarqube-version)
@@ -302,8 +310,12 @@ spec:
 
               git config --global --add safe.directory $(workspaces.source.path)
 
+              # --build-cache dropped: we persist only the dependency cache (modules-2),
+              # not build-task outputs, and --build-cache otherwise keeps trying the
+              # upstream remote cache (develocity.sonar.build, unreachable from edge-build)
+              # every run.
               cd $(workspaces.source.path)/source
-              ./gradlew clean build -DbuildNumber="$BUILD_NUMBER" -x test --console plain --max-workers=4 --build-cache --info;
+              ./gradlew clean build -DbuildNumber="$BUILD_NUMBER" -x test --console plain --max-workers=4 --info;
 
               ls -alh sonar-application/build/distributions
         workspaces:
