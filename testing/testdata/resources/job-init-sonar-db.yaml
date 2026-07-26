@@ -7,7 +7,7 @@ spec:
     spec:
       containers:
         - name: init-db
-          image: <config.{{.registry.test | default "152-231-registry.alauda.cn:60070"}}>/3rdparty/bitnami/postgresql:14.8.0-debian-11-r84
+          image: registry-cache.alauda.io/library/postgres:16.14
           env:
             - name: POSTGRES_POSTGRES_PASSWORD
               valueFrom:

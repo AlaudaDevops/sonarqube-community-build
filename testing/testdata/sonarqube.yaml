@@ -6,7 +6,7 @@ spec:
   helmValues:
     global:
       registry:
-        address: <config.{{.registry.test | default "152-231-registry.alauda.cn:60070"}}>
+        address: <config.{{.registry.test | default "registry-dev.alauda.io"}}>
     postgresql:
       enabled: false
     jdbcOverwrite:
