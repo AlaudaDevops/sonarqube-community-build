@@ -90,7 +90,7 @@ RUN set -eux; \
     /tmp/jar-tools.sh replace "com.sun.mail" "jakarta.mail" 1.6.3 "$JAKARTA_MAIL_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-security"
 
 # renovate: datasource=maven depName=jackson-core lookupName=com.fasterxml.jackson.core:jackson-core
-ARG JACKSON_CORE_FIXED_VERSION=2.21.2
+ARG JACKSON_CORE_FIXED_VERSION=2.21.4
 RUN set -eux; \
     /tmp/jar-tools.sh replace "com.fasterxml.jackson.core" "jackson-core" 2.15.0 "$JACKSON_CORE_FIXED_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference/"; \
     /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "$JACKSON_CORE_FIXED_VERSION" "${SONARQUBE_HOME}/elasticsearch/bin/elasticsearch-sql-cli-8.19.16.jar"; \
