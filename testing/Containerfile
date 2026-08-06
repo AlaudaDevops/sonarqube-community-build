@@ -39,12 +39,30 @@ RUN set -eux \
     && go mod tidy \
     && CGO_ENABLED=1 go test -c -o /tools/bin/sonarqube-e2e.test ./
 
+# Build the Maven repository seed directly from Maven Central.
+FROM registry-dev.alauda.io/alauda-devops-toolchain/sonarqube/sonarqube-ce-test-base:latest AS maven-seed
+
+WORKDIR /opt/sonarqube-e2e/maven-seed
+
+COPY ./testing/repos/maven-simple /tmp/maven-simple
+
+RUN set -eux \
+    && mkdir -p repository \
+    && mvn -B -Dmaven.repo.local=/opt/sonarqube-e2e/maven-seed/repository \
+        -f /tmp/maven-simple/pom.xml verify \
+    && mvn -B -Dmaven.repo.local=/opt/sonarqube-e2e/maven-seed/repository \
+        org.sonarsource.scanner.maven:sonar-maven-plugin:3.10.0.2594:help -Ddetail=false -Dgoal=sonar \
+    && find repository \
+        \( -name '*.lastUpdated' -o -name '_remote.repositories' -o -name 'resolver-status.properties' \
+           -o -name '*.part' -o -name '*.partial' -o -name '*.tmp' -o -name '*.temp' \) -delete \
+    && rm -rf /tmp/maven-simple
+
 
 # migration(sonarqube) P1: build-harbor.alauda.cn/devops/sonarqube-ce-test-base ->
 # {{ registry_url }}/alauda-devops-toolchain/sonarqube/sonarqube-ce-test-base (literal
 # registry-dev.alauda.io host -- this Containerfile is NOT PaC-templated, `{{ }}` only
 # expands inside .tekton/*.yaml). Built by .tekton/build-testing-base-image.yaml.
-FROM registry-dev.alauda.io/alauda-devops-toolchain/sonarqube/sonarqube-ce-test-base:latest
+FROM registry-dev.alauda.io/alauda-devops-toolchain/sonarqube/sonarqube-ce-test-base:latest AS runtime
 
 RUN set -eux \
     && groupadd --gid 65532 nonroot \
@@ -63,13 +81,16 @@ COPY --chown=nonroot:nonroot ./chart /app/chart
 COPY --chown=nonroot:nonroot ./testing /app/testing
 COPY --chown=nonroot:nonroot --from=builder /tools/bin/sonarqube-e2e.test /app/bin/sonarqube-e2e.test
 COPY --chown=nonroot:nonroot --from=builder /go/bin/playwright /app/bin/playwright
+COPY --chown=nonroot:nonroot --from=maven-seed /opt/sonarqube-e2e/maven-seed /opt/sonarqube-e2e/maven-seed
+COPY --chown=nonroot:nonroot ./testing/scripts/import-maven-seed.sh /opt/sonarqube-e2e/maven-seed/import-maven-seed.sh
 
 # migration(sonarqube): forward the same download-host override to the runtime install
 # (this RUN executes in the final stage, a fresh ARG scope -- ARGs do not cross FROM
 # boundaries in Dockerfile/Containerfile syntax).
 ARG PLAYWRIGHT_DOWNLOAD_HOST=https://registry.npmmirror.com/-/binary/playwright
 ENV PLAYWRIGHT_DOWNLOAD_HOST=${PLAYWRIGHT_DOWNLOAD_HOST}
-RUN /app/bin/playwright install chromium --with-deps
+RUN /app/bin/playwright install chromium --with-deps \
+    && chmod 0755 /opt/sonarqube-e2e/maven-seed/import-maven-seed.sh
 
 # migration(sonarqube): install the Allure CLI so the pipeline report step can render
 # the HTML report from the godog allure-results (same as the nexus e2e). Needs a JRE,
