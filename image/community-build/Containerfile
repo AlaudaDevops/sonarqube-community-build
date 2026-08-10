@@ -82,7 +82,7 @@ RUN set -eux; \
     /tmp/jar-tools.sh replace "io.netty" "netty-resolver-dns" 4.1.133.Final "$NETTY_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference"
 
 # renovate: datasource=maven depName=commons-lang3 lookupName=org.apache.commons:commons-lang3
-ARG COMMONS_LANG3_VERSION=3.18.0
+ARG COMMONS_LANG3_VERSION=3.20.0
 # renovate: datasource=maven depName=jakarta.mail lookupName=com.sun.mail:jakarta.mail
 ARG JAKARTA_MAIL_VERSION=1.6.8
 RUN set -eux; \
