@@ -5,6 +5,12 @@ WORKDIR /app
 COPY . /app
 
 ENV GOPROXY='https://build-nexus.alauda.cn/repository/golang/,direct'
+
+# Playwright's retired Azure Edge endpoint no longer serves ARM64 drivers.
+# npmmirror retains the driver and Chromium artifacts required by v1.57.0.
+ARG PLAYWRIGHT_DOWNLOAD_HOST=https://registry.npmmirror.com/-/binary/playwright
+ENV PLAYWRIGHT_DOWNLOAD_HOST=${PLAYWRIGHT_DOWNLOAD_HOST}
+
 RUN PWGO_VER=$(grep -oE "playwright-go v\S+" /app/testing/go.mod | sed 's/playwright-go //g') \
     && go install github.com/playwright-community/playwright-go/cmd/playwright@${PWGO_VER}
 RUN set -eux \
@@ -45,6 +51,10 @@ COPY --chown=nonroot:nonroot --from=builder /go/bin/playwright /app/bin/playwrig
 # Keep the legacy path working while consumers migrate to /app/bin.
 RUN ln -s /app/bin/sonarqube-e2e.test /app/testing/sonarqube-e2e.test
 
+# ARG scope does not cross FROM boundaries, so declare the runtime download
+# host again for the browser installation in the final image.
+ARG PLAYWRIGHT_DOWNLOAD_HOST=https://registry.npmmirror.com/-/binary/playwright
+ENV PLAYWRIGHT_DOWNLOAD_HOST=${PLAYWRIGHT_DOWNLOAD_HOST}
 RUN /app/bin/playwright install chromium --with-deps
 
 WORKDIR /app/testing

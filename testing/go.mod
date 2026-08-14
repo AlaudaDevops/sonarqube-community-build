@@ -6,7 +6,7 @@ require (
 	github.com/AlaudaDevops/bdd v1.7.1
 	github.com/cucumber/godog v0.15.1
 	github.com/go-resty/resty/v2 v2.6.0
-	github.com/playwright-community/playwright-go v0.4902.0
+	github.com/playwright-community/playwright-go v0.5700.1
 	go.uber.org/zap v1.27.1
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/apimachinery v0.33.6
@@ -36,7 +36,7 @@ require (
 	github.com/cyphar/filepath-securejoin v0.3.6 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/davidmz/go-pageant v1.0.2 // indirect
-	github.com/deckarep/golang-set/v2 v2.6.0 // indirect
+	github.com/deckarep/golang-set/v2 v2.8.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.12.2 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
@@ -47,7 +47,7 @@ require (
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.6.2 // indirect
 	github.com/go-git/go-git/v5 v5.13.2 // indirect
-	github.com/go-jose/go-jose/v3 v3.0.3 // indirect
+	github.com/go-jose/go-jose/v3 v3.0.4 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
