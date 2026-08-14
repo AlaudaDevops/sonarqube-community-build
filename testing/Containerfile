@@ -5,6 +5,12 @@ WORKDIR /app
 COPY . /app
 
 ENV GOPROXY='https://build-nexus.alauda.cn/repository/golang/,direct'
+
+# Playwright's retired Azure Edge endpoint no longer serves ARM64 drivers.
+# npmmirror retains the driver and Chromium artifacts required by v1.57.0.
+ARG PLAYWRIGHT_DOWNLOAD_HOST=https://registry.npmmirror.com/-/binary/playwright
+ENV PLAYWRIGHT_DOWNLOAD_HOST=${PLAYWRIGHT_DOWNLOAD_HOST}
+
 RUN PWGO_VER=$(grep -oE "playwright-go v\S+" /app/testing/go.mod | sed 's/playwright-go //g') \
     && go install github.com/playwright-community/playwright-go/cmd/playwright@${PWGO_VER}
 RUN set -eux \
@@ -19,11 +25,36 @@ RUN set -eux \
     && groupadd --gid 65532 nonroot \
     && useradd --uid 65532 --gid 65532 --shell /bin/bash --create-home nonroot
 
+# renovate: datasource=github-releases depName=allure-framework/allure2
+ARG ALLURE_VERSION=2.32.0
+
+# Allure CLI only requires a headless JRE. Install the CLI in the test image so
+# release-test can render the raw godog results before uploading the report.
+RUN set -eux; \
+    apt-get update; \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends default-jre-headless; \
+    wget --retry-connrefused --waitretry=1 --tries=6 \
+      -O /tmp/allure.deb \
+      "https://github.com/allure-framework/allure2/releases/download/${ALLURE_VERSION}/allure_${ALLURE_VERSION}-1_all.deb"; \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends /tmp/allure.deb; \
+    ln -sf /usr/bin/allure /usr/local/bin/allure; \
+    rm -f /tmp/allure.deb; \
+    apt-get clean; \
+    rm -rf /var/lib/apt/lists/*; \
+    allure --version
+
 COPY --chown=nonroot:nonroot ./chart /app/chart
 COPY --chown=nonroot:nonroot ./testing /app/testing
 COPY --chown=nonroot:nonroot --from=builder /tools/bin/sonarqube-e2e.test /app/bin/sonarqube-e2e.test
 COPY --chown=nonroot:nonroot --from=builder /go/bin/playwright /app/bin/playwright
 
+# Keep the legacy path working while consumers migrate to /app/bin.
+RUN ln -s /app/bin/sonarqube-e2e.test /app/testing/sonarqube-e2e.test
+
+# ARG scope does not cross FROM boundaries, so declare the runtime download
+# host again for the browser installation in the final image.
+ARG PLAYWRIGHT_DOWNLOAD_HOST=https://registry.npmmirror.com/-/binary/playwright
+ENV PLAYWRIGHT_DOWNLOAD_HOST=${PLAYWRIGHT_DOWNLOAD_HOST}
 RUN /app/bin/playwright install chromium --with-deps
 
 WORKDIR /app/testing
@@ -33,4 +64,4 @@ ENV CI=true
 ENV LANG=zh_CN.UTF-8
 ENV LC_ALL=zh_CN.UTF-8
 ENV TEST_COMMAND="/app/bin/sonarqube-e2e.test"
-ENTRYPOINT ["/app/testing/sonarqube-e2e.test"]
+ENTRYPOINT ["/app/bin/sonarqube-e2e.test"]
