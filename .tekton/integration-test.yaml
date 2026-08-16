@@ -127,7 +127,12 @@ spec:
           exit $rc
     - name: reportUpload
       value:
+        endpoint: ""
+        bucket: ""
+        component: ""
         dirs: "testing/allure-report testing/allure-results"
+        pathTemplate: "e2e-report/{component}/{time}"
+        preCommand: ""
         # The shared pipeline's baked default baseURL (:30880) is the
         # alauda-pipelines-build report-server, which does NOT serve this project's
         # bucket (returns 404). This project uploads to the toolchain-build cache,
