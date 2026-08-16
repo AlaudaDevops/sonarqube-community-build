@@ -47,6 +47,30 @@ acp:
 make test-e2e
 ```
 
+### Lynx ReleaseTestPlan 入口
+
+测试镜像提供 `/app/lynx-entrypoint.sh`，供 TestTemplate 直接调用。入口按顺序完成
+ACP 登录、目标 Region kubeconfig 获取、Operator OLM 安装与就绪等待、
+`@sonarqube-e2e` 测试和 Allure 报告生成。实现拆分在 `testing/lynx/`，入口只负责
+参数、阶段编排和退出码传递。
+
+必需环境变量：
+
+- `API_URL`、`USERNAME`、`PASSWORD`、`REGION_NAME`
+- `LYNX_EXPECTED_OPERATOR_VERSION`：必须与 PackageManifest 当前版本一致
+
+常用可选变量：
+
+- `LYNX_E2E_TAGS`（默认 `@sonarqube-e2e`）
+- `RESULT_DIR`（默认使用平台注入的 `TEST_RESULT_DIR`）
+- `CLEANUP_AFTER_TEST`（默认保留 Operator，仅由 E2E 管理临时 CR）
+- `LYNX_PACKAGE_TIMEOUT`、`LYNX_INSTALL_TIMEOUT`
+- `LYNX_TOTAL_TIMEOUT`（默认 40 分钟，必须小于 TestTemplate timeout）
+- `LYNX_INSECURE_SKIP_TLS_VERIFY`（仅自签名测试环境显式设置为 `true`）
+
+入口不会输出密码、Token、kubeconfig 或 Secret。安装和测试任一步失败都会返回非零；
+失败诊断仅收集 OLM、Workload 和 Event 状态。
+
 ### sonarqube 业务能力验证
 
 前置条件：

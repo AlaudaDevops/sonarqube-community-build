@@ -1,6 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -ex
+set +x
+set -euo pipefail
 
 SONAR_HOST=$1
 SONAR_USER=$2
@@ -8,7 +9,10 @@ SONAR_PWD=$3
 
 url="$SONAR_HOST/api/user_tokens/generate?name=my-token-$(date +%s)"
 SONAR_TOKEN=$(curl -s -X POST -u "$SONAR_USER:$SONAR_PWD" "$url" | jq -r '.token')
-echo "获取到的Token是: $SONAR_TOKEN"
+if [[ -z "${SONAR_TOKEN}" || "${SONAR_TOKEN}" == "null" ]]; then
+    echo "failed to create SonarQube test token" >&2
+    exit 1
+fi
 
 mkdir -p ~/.m2
 SONAR_SETTINGS_CONTENT="    <pluginGroups>\n"
@@ -59,9 +63,7 @@ sonar:
     url: $SONAR_HOST
     token: $SONAR_TOKEN
 EOF
-
-cat ./sonarqube-config.yaml
-
+chmod 0600 sonarqube-config.yaml
 
 export SONAR_HOST=$SONAR_HOST
 export SONAR_TOKEN=$SONAR_TOKEN
