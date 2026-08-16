@@ -73,9 +73,23 @@ RUN set -eux \
 # $NSS_WRAPPER_HOSTS) from the scan subprocesses (curl + the Java sonar-scanner)
 # without writing the root-owned /etc/hosts. bdd fake DNS only covers its own Go
 # client, so the ingress-http/https scan steps need this.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends libnss-wrapper \
-    && rm -rf /var/lib/apt/lists/*
+# renovate: datasource=github-releases depName=allure-framework/allure2
+ARG ALLURE_VERSION=2.32.0
+
+# Allure CLI only requires a headless JRE. Install the CLI in the test image so
+# release-test can render the raw godog results before uploading the report.
+RUN set -eux; \
+    apt-get update; \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends default-jre-headless libnss-wrapper; \
+    wget --retry-connrefused --waitretry=1 --tries=6 \
+      -O /tmp/allure.deb \
+      "https://github.com/allure-framework/allure2/releases/download/${ALLURE_VERSION}/allure_${ALLURE_VERSION}-1_all.deb"; \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends /tmp/allure.deb; \
+    ln -sf /usr/bin/allure /usr/local/bin/allure; \
+    rm -f /tmp/allure.deb; \
+    apt-get clean; \
+    rm -rf /var/lib/apt/lists/*; \
+    allure --version
 
 COPY --chown=nonroot:nonroot ./chart /app/chart
 COPY --chown=nonroot:nonroot ./testing /app/testing
@@ -84,6 +98,9 @@ COPY --chown=nonroot:nonroot --from=builder /go/bin/playwright /app/bin/playwrig
 COPY --chown=nonroot:nonroot --from=maven-seed /opt/sonarqube-e2e/maven-seed /opt/sonarqube-e2e/maven-seed
 COPY --chown=nonroot:nonroot ./testing/scripts/import-maven-seed.sh /opt/sonarqube-e2e/maven-seed/import-maven-seed.sh
 
+# Keep the legacy path working while consumers migrate to /app/bin.
+RUN ln -s /app/bin/sonarqube-e2e.test /app/testing/sonarqube-e2e.test
+
 # migration(sonarqube): forward the same download-host override to the runtime install
 # (this RUN executes in the final stage, a fresh ARG scope -- ARGs do not cross FROM
 # boundaries in Dockerfile/Containerfile syntax).
@@ -91,15 +108,6 @@ ARG PLAYWRIGHT_DOWNLOAD_HOST=https://registry.npmmirror.com/-/binary/playwright
 ENV PLAYWRIGHT_DOWNLOAD_HOST=${PLAYWRIGHT_DOWNLOAD_HOST}
 RUN /app/bin/playwright install chromium --with-deps \
     && chmod 0755 /opt/sonarqube-e2e/maven-seed/import-maven-seed.sh
-
-# migration(sonarqube): install the Allure CLI so the pipeline report step can render
-# the HTML report from the godog allure-results (same as the nexus e2e). Needs a JRE,
-# which the test-base already ships (sonar-scanner is Java).
-ARG ALLURE_VERSION=2.24.1
-RUN wget -q https://github.com/allure-framework/allure2/releases/download/${ALLURE_VERSION}/allure-${ALLURE_VERSION}.tgz \
-    && tar -zxf allure-${ALLURE_VERSION}.tgz -C /opt/ \
-    && ln -s /opt/allure-${ALLURE_VERSION}/bin/allure /usr/local/bin/allure \
-    && rm allure-${ALLURE_VERSION}.tgz
 
 WORKDIR /app/testing
 
@@ -113,4 +121,4 @@ ENV LC_ALL=zh_CN.UTF-8
 # wildcard to a wrong platform IP -> EOF. Needs the CGO_ENABLED=1 build above.
 ENV GODEBUG=netdns=cgo
 ENV TEST_COMMAND="/app/bin/sonarqube-e2e.test"
-ENTRYPOINT ["/app/testing/sonarqube-e2e.test"]
+ENTRYPOINT ["/app/bin/sonarqube-e2e.test"]

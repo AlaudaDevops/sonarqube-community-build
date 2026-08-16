@@ -50,6 +50,7 @@ spec:
         imageRepository: "{{ registry_url }}/alauda-devops-toolchain/sonarqube/sonarqube-ce-test"
         containerfilePath: testing/Containerfile
         context: "."
+        workingDir: "."
     - name: buildTestImageBuildArgs
       value:
         # GOPROXY injected from the gomod_proxy PaC global (renders to gomod.alauda.io
