@@ -3,7 +3,7 @@
 # project-wide base-image rule D-5: registry-dev.alauda.io/base-images/golang does NOT
 # exist (confirmed absent via authenticated Harbor v2 tags/list probe -- base-images/
 # only carries alpine + debian today). Tag preserved verbatim (go.mod pins go 1.25.5).
-FROM registry-cache.alauda.io/library/golang:1.25.5-bookworm AS builder
+FROM hub-mirrors.alauda.cn/library/golang:1.25.5-bookworm AS builder
 
 WORKDIR /app
 
@@ -40,7 +40,7 @@ RUN set -eux \
     && CGO_ENABLED=1 go test -c -o /tools/bin/sonarqube-e2e.test ./
 
 # Build the Maven repository seed directly from Maven Central.
-FROM registry-dev.alauda.io/alauda-devops-toolchain/sonarqube/sonarqube-ce-test-base:latest AS maven-seed
+FROM build-harbor.alauda.cn/devops/sonarqube-ce-test-base:latest AS maven-seed
 
 WORKDIR /opt/sonarqube-e2e/maven-seed
 
@@ -62,7 +62,7 @@ RUN set -eux \
 # {{ registry_url }}/alauda-devops-toolchain/sonarqube/sonarqube-ce-test-base (literal
 # registry-dev.alauda.io host -- this Containerfile is NOT PaC-templated, `{{ }}` only
 # expands inside .tekton/*.yaml). Built by .tekton/build-testing-base-image.yaml.
-FROM registry-dev.alauda.io/alauda-devops-toolchain/sonarqube/sonarqube-ce-test-base:latest AS runtime
+FROM build-harbor.alauda.cn/devops/sonarqube-ce-test-base:latest AS runtime
 
 RUN set -eux \
     && groupadd --gid 65532 nonroot \
