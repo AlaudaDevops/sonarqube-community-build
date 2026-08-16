@@ -93,6 +93,8 @@ RUN set -eux; \
 
 COPY --chown=nonroot:nonroot ./chart /app/chart
 COPY --chown=nonroot:nonroot ./testing /app/testing
+COPY --chown=nonroot:nonroot ./testing/lynx-entrypoint.sh /app/lynx-entrypoint.sh
+COPY --chown=nonroot:nonroot ./testing/lynx /app/lynx
 COPY --chown=nonroot:nonroot --from=builder /tools/bin/sonarqube-e2e.test /app/bin/sonarqube-e2e.test
 COPY --chown=nonroot:nonroot --from=builder /go/bin/playwright /app/bin/playwright
 COPY --chown=nonroot:nonroot --from=maven-seed /opt/sonarqube-e2e/maven-seed /opt/sonarqube-e2e/maven-seed
@@ -107,7 +109,8 @@ RUN ln -s /app/bin/sonarqube-e2e.test /app/testing/sonarqube-e2e.test
 ARG PLAYWRIGHT_DOWNLOAD_HOST=https://registry.npmmirror.com/-/binary/playwright
 ENV PLAYWRIGHT_DOWNLOAD_HOST=${PLAYWRIGHT_DOWNLOAD_HOST}
 RUN /app/bin/playwright install chromium --with-deps \
-    && chmod 0755 /opt/sonarqube-e2e/maven-seed/import-maven-seed.sh
+    && chmod 0755 /opt/sonarqube-e2e/maven-seed/import-maven-seed.sh \
+    && chmod 0755 /app/lynx-entrypoint.sh /app/lynx/*.sh
 
 WORKDIR /app/testing
 
