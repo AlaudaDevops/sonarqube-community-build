@@ -53,6 +53,10 @@ spec:
     - name: build-extra-args
       value:
         - --build-arg
+        - GOLANG_IMAGE=hub-mirrors.alauda.cn/library/golang:1.25.5-bookworm
+        - --build-arg
+        - TEST_BASE_IMAGE=build-harbor.alauda.cn/devops/sonarqube-ce-test-base:latest
+        - --build-arg
         - GOPROXY=https://build-nexus.alauda.cn/repository/golang/,direct
         - --build-arg
         - PLAYWRIGHT_DOWNLOAD_HOST=https://registry.npmmirror.com/-/binary/playwright
