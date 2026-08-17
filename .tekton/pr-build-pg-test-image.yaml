@@ -40,6 +40,9 @@ spec:
 
     - name: image-repository
       value: build-harbor.alauda.cn/devops/sonarqube-ce-test
+    - name: platforms
+      value:
+        - linux/amd64
     - name: ignore-gitversion-tag
       value: "false"
     - name: reuse-artifact
