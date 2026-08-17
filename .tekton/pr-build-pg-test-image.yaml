@@ -73,6 +73,7 @@ spec:
         grep -Fq 'registry-dev.alauda.io' /app/testing/testdata/resources/pg-postgresql.yaml
         grep -Fq 'registry-dev.alauda.io' /app/testing/testdata/resources/job-init-sonar-db.yaml
         bash /app/testing/hack/test-lynx-report-path.sh
+        bash /app/testing/hack/test-sonarqube-pvc-access-mode.sh
 
   workspaces:
     - name: source

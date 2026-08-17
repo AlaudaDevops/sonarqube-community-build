@@ -15,7 +15,7 @@
 
 1. 设置好 kubeconfig，可以连接到 k8s 集群
 2. 集群已安装 ingress controller（可以是 alb 或者是 nginx ingress controller，不限制）
-3. 存在存储类，存储类需要支持 readwritemany 方式（nfs 和 ceph 都支持）
+3. 存在支持 ReadWriteOnce 的存储类
 
 在 testing 目录下面执行命令即可。
 
