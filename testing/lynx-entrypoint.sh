@@ -10,7 +10,7 @@ done
 
 API_URL="${API_URL:-}"
 API_URL="${API_URL%/}"
-RESULT_DIR="${RESULT_DIR:-${TEST_RESULT_DIR:-/tmp/test-results}}"
+RESULT_DIR="$(resolve_result_dir)"
 CLEANUP_AFTER_TEST="${CLEANUP_AFTER_TEST:-false}"
 LYNX_E2E_TAGS="${LYNX_E2E_TAGS:-@sonarqube-e2e}"
 LYNX_E2E_CONCURRENCY="${LYNX_E2E_CONCURRENCY:-2}"

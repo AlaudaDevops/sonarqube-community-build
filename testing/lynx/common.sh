@@ -21,6 +21,14 @@ require_command() {
   command -v "${name}" >/dev/null 2>&1 || fatal "required command is unavailable: ${name}"
 }
 
+resolve_result_dir() {
+  if [[ -n "${TEST_RESULT_DIR:-}" ]]; then
+    printf '%s' "${TEST_RESULT_DIR}"
+  else
+    printf '%s' "${RESULT_DIR:-/tmp/test-results}"
+  fi
+}
+
 wait_for_value() {
   local description="$1" expected="$2" timeout_seconds="$3"
   shift 3

@@ -17,7 +17,7 @@ run_e2e() {
   local test_rc report_rc=0
   kubectl create namespace bdd-testing --dry-run=client -o yaml | kubectl apply -f - >/dev/null
   write_test_config
-  mkdir -p "${RESULT_DIR}/allure-results" "${RESULT_DIR}/allure-report"
+  mkdir -p "${RESULT_DIR}/allure-result" "${RESULT_DIR}/allure-report"
 
   log "[TEST] running SonarQube E2E tags: ${LYNX_E2E_TAGS}"
   pushd "${LYNX_TEST_WORKDIR}" >/dev/null
@@ -31,11 +31,11 @@ run_e2e() {
   set -e
 
   if [[ -d allure-results ]]; then
-    cp -a allure-results/. "${RESULT_DIR}/allure-results/"
+    cp -a allure-results/. "${RESULT_DIR}/allure-result/"
   fi
   popd >/dev/null
 
-  allure generate "${RESULT_DIR}/allure-results" --clean -o "${RESULT_DIR}/allure-report" \
+  allure generate "${RESULT_DIR}/allure-result" --clean -o "${RESULT_DIR}/allure-report" \
     || report_rc=$?
   if ((test_rc != 0)); then
     log "[TEST] E2E failed with exit code ${test_rc}"
