@@ -66,6 +66,7 @@ spec:
     - name: file-list-for-commit-sha
       value:
         - testing
+        - .tekton/pr-build-pg-test-image.yaml
     - name: test-script
       value: |-
         test -x /app/lynx-entrypoint.sh
