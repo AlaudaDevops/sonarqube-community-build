@@ -61,6 +61,21 @@ spec:
                 topologyKey: kubernetes.io/hostname
               weight: 1
       automountServiceAccountToken: false
+      initContainers:
+        - name: init-chmod-data
+          image: <config.{{.registry.test | default "registry-dev.alauda.io"}}>/alauda-devops-toolchain/upstream/bitnami/postgresql:14.8.0-debian-11-r84
+          command:
+            - /bin/sh
+            - -c
+            - |
+              mkdir -p /bitnami/postgresql/data
+              chown -R 1001:1001 /bitnami/postgresql
+              chmod 700 /bitnami/postgresql/data
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - mountPath: /bitnami/postgresql
+              name: data
       containers:
         - env:
             - name: BITNAMI_DEBUG
