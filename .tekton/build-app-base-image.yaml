@@ -1,8 +1,8 @@
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
-  name: sonar-testing-base-image
-  annotations: {"pipelinesascode.tekton.dev/on-comment": "^((/test-all)|(/build-testing-base-image))$", "pipelinesascode.tekton.dev/max-keep-runs": "5"}
+  name: sonar-app-base-image
+  annotations: {"pipelinesascode.tekton.dev/on-comment": "^((/test-all)|(/build-app-base-image))$", "pipelinesascode.tekton.dev/on-cel-expression": "target_branch.matches(\"^(main|release-.*|alauda-.*)$\") &&\n!last_commit_title.contains(\"Auto-commit\") &&\n(\n  \"image/app-base/**\".pathChanged() ||\n  \".tekton/build-app-base-image.yaml\".pathChanged()\n)", "pipelinesascode.tekton.dev/max-keep-runs": "5"}
 spec:
   timeouts:
     pipeline: "2h"
@@ -20,7 +20,7 @@ spec:
       imagePullSecrets:
         - name: "{{ registry_secret }}"
   taskRunSpecs:
-    - pipelineTaskName: build-testing-base-image
+    - pipelineTaskName: build-app-base-image
       computeResources:
         requests:
           cpu: "1"
@@ -62,7 +62,7 @@ spec:
   # migration(sonarqube) Decision A (driver): builds+pushes the custom base image that
   # pre-bakes build-sonar-app's root setup (image/app-base/Containerfile), so that step
   # can run nonroot under the ns's PodSecurity `restricted:latest`. A separate PaC
-  # pipeline from build-image.yaml, on its own on-cel path trigger + /build-testing-base-image
+  # pipeline from build-image.yaml, on its own on-cel path trigger + /build-app-base-image
   # comment trigger -- same shape convention (podTemplate securityContext, connectors,
   # workspaces, on-cel/on-comment/max-keep-runs annotations) as this repo's own
   # build-testing-base-image.yaml, but with an inline git-clone + buildctl pipelineSpec
@@ -72,8 +72,8 @@ spec:
   # no test/scan stage.
   #
   # ORDERING DEPENDENCY (for the coordinator): this pipeline must be fired at least once
-  # (comment `/build-testing-base-image` on a PR/MR against this branch) to publish
-  # sonarqube-ce-test-base:latest BEFORE build-image.yaml's build-sonar-app task can pull
+  # (comment `/build-app-base-image` on a PR/MR against this branch) to publish
+  # sonarqube-ce-app-base:latest BEFORE build-image.yaml's build-sonar-app task can pull
   # it -- that task's step now references this image directly (no fallback).
   pipelineSpec:
     params:
@@ -122,7 +122,7 @@ spec:
             workspace: source
           - name: basic-auth
             workspace: basic-auth
-      - name: build-testing-base-image
+      - name: build-app-base-image
         timeout: 45m
         retries: 1
         taskRef:
@@ -149,14 +149,14 @@ spec:
           # migration(sonarqube) P1: output-image-path convention shared with
           # build-image.yaml's build-sonar-image/build-sonar-plugin-image tasks.
           - name: imageURL
-            value: "{{ registry_url }}/alauda-devops-toolchain/sonarqube/sonarqube-ce-test-base"
+            value: "{{ registry_url }}/alauda-devops-toolchain/sonarqube/sonarqube-ce-app-base"
           - name: imageTags
             value:
               - latest
           - name: containerfile
-            value: Containerfile.base
+            value: image/app-base/Containerfile
           - name: context
-            value: .tekton/containerfile
+            value: .
           - name: platform
             value:
               - linux/amd64

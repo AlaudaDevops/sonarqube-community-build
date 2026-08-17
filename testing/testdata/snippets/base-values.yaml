@@ -22,4 +22,4 @@ jdbcOverwrite:
   jdbcUsername: postgres
 global:
   registry:
-    address: <config.{{.registry.cluster | default "152-231-registry.alauda.cn:60070"}}>
+    address: <config.{{.registry.cluster | default "registry-dev.alauda.io"}}>

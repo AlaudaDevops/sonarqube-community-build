@@ -1,0 +1,18 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nfs
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+# migration(sonarqube) DEVOPS-44461: nfs as the DEFAULT SC so bdd's <storage-class.rwm>
+# resolves to it -- the "rwm" suffix is NOT actually consumed by bdd's storage-class
+# generator (github.com/AlaudaDevops/bdd steps/kubernetes/storageclass/variables.go:
+# Vars(ctx, _ string) discards its param entirely and always returns whatever the
+# default/first storage class is), so the ONLY way to get an RWX-capable SC picked for
+# the storage-pvc scenario is to make one the cluster default. local-path (the ctyun-vm
+# golden image's baked SC) is RWO-only (same gap gitlab-chart hit and fixed the same way,
+# see gitlab-chart@migration-alauda-18.8.6 testing/testdata/resources/rwx-hostpath.yaml).
+# no-provisioner; the PV pool is loop-generated in testing/script/prepare-cluster.sh.
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: Immediate
+reclaimPolicy: Retain

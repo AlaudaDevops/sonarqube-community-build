@@ -1,30 +1,119 @@
-FROM hub-mirrors.alauda.cn/library/golang:1.25.5-bookworm AS builder
+# migration(sonarqube) P1/P2: hub-mirrors.alauda.cn (internal Docker Hub mirror,
+# unreachable from edge-build) -> docker.io/library (literal, pulled direct) per the
+# project-wide base-image rule D-5: registry-dev.alauda.io/base-images/golang does NOT
+# exist (confirmed absent via authenticated Harbor v2 tags/list probe -- base-images/
+# only carries alpine + debian today). Tag preserved verbatim (go.mod pins go 1.25.5).
+ARG GOLANG_IMAGE=registry-cache.alauda.io/library/golang:1.25.5-bookworm
+ARG TEST_BASE_IMAGE=registry-dev.alauda.io/alauda-devops-toolchain/sonarqube/sonarqube-ce-test-base:latest
+
+FROM ${GOLANG_IMAGE} AS builder
 
 WORKDIR /app
 
 COPY . /app
 
-ENV GOPROXY='https://build-nexus.alauda.cn/repository/golang/,direct'
+# migration(sonarqube) P1: build-nexus.alauda.cn/repository/golang/ is unreachable from
+# edge-build (same host class as the gomod-proxy fix already applied on
+# sonarqube-ce-operator@migration). ARG default is the literal resolved value of the
+# {{ gomod_proxy }} PaC global (gomod.alauda.io, Athens) -- Containerfiles are NOT
+# PaC-templated, so `{{ }}` cannot appear here; the .tekton pipeline also passes this
+# same value via --build-arg (see integration-test.yaml), the ARG default is only the
+# local/manual-build fallback.
+ARG GOPROXY=https://gomod.alauda.io,direct
+ENV GOPROXY=${GOPROXY}
+ENV GOSUMDB=off
+
+# migration(sonarqube) P1 (repo-local, reversible fix -- autonomy ladder 🟢, principle
+# P1/P2): playwright-go's `install` subcommand shells out to the upstream Node
+# playwright driver, whose default download host (playwright.azureedge.net) 404s from
+# edge-build's network (Microsoft retired that CDN). Redirect to the npmmirror mirror,
+# same fix already applied at the operator sibling (sonarqube-ce-operator's own
+# .env.yarn: PLAYWRIGHT_DOWNLOAD_HOST=https://registry.npmmirror.com/-/binary/playwright).
+# Declared as an ARG (with this file's own working default) so it also takes the
+# --build-arg the integration-test PipelineRun passes, without requiring it.
+ARG PLAYWRIGHT_DOWNLOAD_HOST=https://registry.npmmirror.com/-/binary/playwright
+ENV PLAYWRIGHT_DOWNLOAD_HOST=${PLAYWRIGHT_DOWNLOAD_HOST}
+
 RUN PWGO_VER=$(grep -oE "playwright-go v\S+" /app/testing/go.mod | sed 's/playwright-go //g') \
     && go install github.com/playwright-community/playwright-go/cmd/playwright@${PWGO_VER}
 RUN set -eux \
     && mkdir -p /tools/bin && chmod -R 777 /tools/bin \
     && cd /app/testing \
-    && CGO_ENABLED=0 go test -c -o /tools/bin/sonarqube-e2e.test ./
+    && go mod tidy \
+    && CGO_ENABLED=1 go test -c -o /tools/bin/sonarqube-e2e.test ./
+
+# Build the Maven repository seed directly from Maven Central.
+FROM ${TEST_BASE_IMAGE} AS maven-seed
+
+WORKDIR /opt/sonarqube-e2e/maven-seed
+
+COPY ./testing/repos/maven-simple /tmp/maven-simple
+
+RUN set -eux \
+    && mkdir -p repository \
+    && mvn -B -Dmaven.repo.local=/opt/sonarqube-e2e/maven-seed/repository \
+        -f /tmp/maven-simple/pom.xml verify \
+    && mvn -B -Dmaven.repo.local=/opt/sonarqube-e2e/maven-seed/repository \
+        org.sonarsource.scanner.maven:sonar-maven-plugin:3.10.0.2594:help -Ddetail=false -Dgoal=sonar \
+    && find repository \
+        \( -name '*.lastUpdated' -o -name '_remote.repositories' -o -name 'resolver-status.properties' \
+           -o -name '*.part' -o -name '*.partial' -o -name '*.tmp' -o -name '*.temp' \) -delete \
+    && rm -rf /tmp/maven-simple
 
 
-FROM build-harbor.alauda.cn/devops/sonarqube-ce-test-base:latest
+# migration(sonarqube) P1: build-harbor.alauda.cn/devops/sonarqube-ce-test-base ->
+# {{ registry_url }}/alauda-devops-toolchain/sonarqube/sonarqube-ce-test-base (literal
+# registry-dev.alauda.io host -- this Containerfile is NOT PaC-templated, `{{ }}` only
+# expands inside .tekton/*.yaml). Built by .tekton/build-testing-base-image.yaml.
+FROM ${TEST_BASE_IMAGE} AS runtime
 
 RUN set -eux \
     && groupadd --gid 65532 nonroot \
     && useradd --uid 65532 --gid 65532 --shell /bin/bash --create-home nonroot
 
+# migration(sonarqube): nss_wrapper lets the nonroot run-test process resolve the
+# per-scenario ingress hostnames (added by scripts/add-host.sh into
+# $NSS_WRAPPER_HOSTS) from the scan subprocesses (curl + the Java sonar-scanner)
+# without writing the root-owned /etc/hosts. bdd fake DNS only covers its own Go
+# client, so the ingress-http/https scan steps need this.
+# renovate: datasource=github-releases depName=allure-framework/allure2
+ARG ALLURE_VERSION=2.32.0
+
+# Allure CLI only requires a headless JRE. Install the CLI in the test image so
+# release-test can render the raw godog results before uploading the report.
+RUN set -eux; \
+    apt-get update; \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends default-jre-headless libnss-wrapper; \
+    wget --retry-connrefused --waitretry=1 --tries=6 \
+      -O /tmp/allure.deb \
+      "https://github.com/allure-framework/allure2/releases/download/${ALLURE_VERSION}/allure_${ALLURE_VERSION}-1_all.deb"; \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends /tmp/allure.deb; \
+    ln -sf /usr/bin/allure /usr/local/bin/allure; \
+    rm -f /tmp/allure.deb; \
+    apt-get clean; \
+    rm -rf /var/lib/apt/lists/*; \
+    allure --version
+
 COPY --chown=nonroot:nonroot ./chart /app/chart
 COPY --chown=nonroot:nonroot ./testing /app/testing
+COPY --chown=nonroot:nonroot ./testing/lynx-entrypoint.sh /app/lynx-entrypoint.sh
+COPY --chown=nonroot:nonroot ./testing/lynx /app/lynx
 COPY --chown=nonroot:nonroot --from=builder /tools/bin/sonarqube-e2e.test /app/bin/sonarqube-e2e.test
 COPY --chown=nonroot:nonroot --from=builder /go/bin/playwright /app/bin/playwright
+COPY --chown=nonroot:nonroot --from=maven-seed /opt/sonarqube-e2e/maven-seed /opt/sonarqube-e2e/maven-seed
+COPY --chown=nonroot:nonroot ./testing/scripts/import-maven-seed.sh /opt/sonarqube-e2e/maven-seed/import-maven-seed.sh
 
-RUN /app/bin/playwright install chromium --with-deps
+# Keep the legacy path working while consumers migrate to /app/bin.
+RUN ln -s /app/bin/sonarqube-e2e.test /app/testing/sonarqube-e2e.test
+
+# migration(sonarqube): forward the same download-host override to the runtime install
+# (this RUN executes in the final stage, a fresh ARG scope -- ARGs do not cross FROM
+# boundaries in Dockerfile/Containerfile syntax).
+ARG PLAYWRIGHT_DOWNLOAD_HOST=https://registry.npmmirror.com/-/binary/playwright
+ENV PLAYWRIGHT_DOWNLOAD_HOST=${PLAYWRIGHT_DOWNLOAD_HOST}
+RUN /app/bin/playwright install chromium --with-deps \
+    && chmod 0755 /opt/sonarqube-e2e/maven-seed/import-maven-seed.sh \
+    && chmod 0755 /app/lynx-entrypoint.sh /app/lynx/*.sh
 
 WORKDIR /app/testing
 
@@ -32,5 +121,10 @@ ENV PATH="${PATH}:/app/sonar-scanner/bin:/app/bin"
 ENV CI=true
 ENV LANG=zh_CN.UTF-8
 ENV LC_ALL=zh_CN.UTF-8
+# migration(sonarqube): force Go to resolve via glibc getaddrinfo (cgo resolver) so it
+# honors the nss_wrapper (LD_PRELOAD) ingress-host mapping that add-host.sh writes.
+# Go's native resolver ignores LD_PRELOAD, resolving *.example.com via the resolv.conf
+# wildcard to a wrong platform IP -> EOF. Needs the CGO_ENABLED=1 build above.
+ENV GODEBUG=netdns=cgo
 ENV TEST_COMMAND="/app/bin/sonarqube-e2e.test"
-ENTRYPOINT ["/app/testing/sonarqube-e2e.test"]
+ENTRYPOINT ["/app/bin/sonarqube-e2e.test"]

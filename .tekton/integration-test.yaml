@@ -2,125 +2,198 @@ apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
   name: sonar-integration-test
-  annotations:
-    pipelinesascode.tekton.dev/on-comment: "^((/test-all)|(/integration-test))"
-    pipelinesascode.tekton.dev/on-cel-expression: |-
-      target_branch.matches("^(main|release-.*|alauda-.*)$") &&
-      (
-        "chart/**".pathChanged() ||
-        "testing/**".pathChanged()
-      )
-    pipelinesascode.tekton.dev/max-keep-runs: "5"
+  annotations: {"pipelinesascode.tekton.dev/on-comment": "^((/test-all)|(/integration-test))", "pipelinesascode.tekton.dev/on-cel-expression": "target_branch.matches(\"^(main|release-.*|alauda-.*)$\") &&\n!last_commit_title.contains(\"Auto-commit\") &&\n(\n  \"chart/**\".pathChanged() ||\n  \"testing/**\".pathChanged()\n)", "pipelinesascode.tekton.dev/cancel-in-progress": "true", "pipelinesascode.tekton.dev/max-keep-runs": "5"}
 spec:
   taskRunTemplate:
+    serviceAccountName: default
     podTemplate:
       securityContext:
         fsGroup: 65532
         fsGroupChangePolicy: "OnRootMismatch"
-  taskRunSpecs:
-    - pipelineTaskName: run-test
-      computeResources:
-        limits:
-          cpu: "4"
-          memory: 4Gi
+      imagePullSecrets:
+        - name: "{{ registry_secret }}"
   timeouts:
     pipeline: 5h
     tasks: 5h
+  # migration(sonarqube): the pre-migration ref (resolver: hub, catalog=alauda,
+  # type=tekton, kind=pipeline, name=vcluster-integration-test) can never resolve on
+  # edge-build (edge-build-hub-resolver-gap). Replaced with the shared
+  # `ctyun-vm-integration-test` Pipeline CR (ArgoCD-synced into ns
+  # alauda-devops-toolchain-build), the SAME harness proven green on
+  # sonarqube-ce-operator@migration and the live gitlab-chart consumer: provisions a
+  # throwaway CTYun VM (k3s), runs the e2e against it, tears it down in finally.
   pipelineRef:
-    resolver: hub
+    resolver: cluster
     params:
-      - name: catalog
-        value: alauda
-      - name: type
-        value: tekton
       - name: kind
         value: pipeline
       - name: name
-        value: vcluster-integration-test
-      - name: version
-        value: "0.2"
-
+        value: ctyun-vm-integration-test
+      - name: namespace
+        value: alauda-devops-toolchain-build
   params:
-    - name: git-revision
+    - name: gitRevision
       value:
         url: "{{ repo_url }}"
         branch: "{{ source_branch }}"
         commit: "{{ revision }}"
-        pull-request-number: "{{ pull_request_number }}"
-        pull-request-source: "{{ source_branch }}"
-        pull-request-target: "{{ target_branch }}"
-    - name: build-test-image
+        pullRequestNumber: "{{ pull_request_number }}"
+        pullRequestSource: "{{ source_branch }}"
+        pullRequestTarget: "{{ target_branch }}"
+    # Per-PR test image: multi-stage testing/Containerfile compiles the godog e2e
+    # binary itself (builder stage), so no separate `prepare` param is needed here
+    # (same reasoning as the live gitlab-chart sibling).
+    - name: buildTestImage
       value:
-        image-repository: build-harbor.alauda.cn/devops/sonarqube-ce-test
-        containerfile-path: testing/Containerfile
+        # migration(sonarqube) P1: build-harbor.alauda.cn/devops/sonarqube-ce-test ->
+        # {{ registry_url }}/alauda-devops-toolchain/sonarqube/sonarqube-ce-test
+        imageRepository: "{{ registry_url }}/alauda-devops-toolchain/sonarqube/sonarqube-ce-test"
+        containerfilePath: testing/Containerfile
+        context: "."
+        workingDir: "."
+    - name: buildTestImageBuildArgs
+      value:
+        # GOPROXY injected from the gomod_proxy PaC global (renders to gomod.alauda.io
+        # on edge-build), matching testing/Containerfile's own ARG GOPROXY default
+        # (repo-local fix applied in this patch -- see testing/Containerfile).
+        - "--build-arg"
+        - "GOPROXY=https://{{ gomod_proxy }},direct"
+        # testing/Containerfile's builder stage runs `playwright install chromium
+        # --with-deps`; playwright's default download host (playwright.azureedge.net)
+        # 404s from edge-build's network (known break, sonarqube-cohort-init memory).
+        # Redirect to the npmmirror CDN mirror. testing/Containerfile now declares
+        # `ARG PLAYWRIGHT_DOWNLOAD_HOST` before the playwright install RUN step (this
+        # patch), so the build-arg takes effect -- unlike the earlier
+        # sonarqube-ce-operator patch, which could only pass the build-arg speculatively
+        # since this Containerfile was then out of scope.
+        - "--build-arg"
+        - "PLAYWRIGHT_DOWNLOAD_HOST=https://registry.npmmirror.com/-/binary/playwright"
+    # migration(sonarqube) DEVOPS-44461: the ctyun-vm golden image's baked local-path SC is
+    # RWO-only and its baked ingress-nginx never publishes a status IP (no cloud LB / MetalLB
+    # to hand it one) -- both break sonarqube-chart's storage-pvc (needs RWX) and
+    # network-http/https (needs an ingress status IP) scenarios. Reuses gitlab-chart's
+    # proven-green fix (same VM harness, same two gaps, migration-alauda-18.8.6
+    # modules/gitlab-chart/testing/script/prepare-cluster.sh): nfs no-provisioner SC + RWX
+    # PV pool as cluster default, plus --publish-status-address/externalIPs on the ingress
+    # controller Service. Image is gitlab-ce-operator's own already-published, generic
+    # kubectl+yq CNG tool image (cross-project reuse, not a new provisioned resource); digest
+    # pinned (no `latest` tag exists on this image). Best-effort: prepare-cluster.sh always
+    # exits 0 so a failure here can never skip run-test (deploy has no onError:continue).
+    - name: deploy
+      value:
+        image: "{{ registry_url }}/alauda-devops-toolchain/gitlab/kubectl@sha256:ee4af3024decc9e2a3e5e11f5669327e5423818bc41788d3dc63c9dd7fd2f505"
+        command: |
+          set -ux
+          export SOURCE_PATH="$(workspaces.source.path)"
+          bash "${SOURCE_PATH}/testing/script/prepare-cluster.sh" || true
+          exit 0
     - name: test
       value:
         command: |
-          set -x
           cd $(workspaces.source.path)/testing
-          export KUBECONFIG=$(workspaces.config.path)/vcluster-config
-          chmod 600 $(workspaces.config.path)/vcluster-config
-          kubectl config view
-
 
           echo "run integration tests..."
           export REPORT=allure
           export TAGS='@sonarqube-chart-deploy'
-          make test
-    - name: vcluster
-      value:
-        custom-config: |
-          sync:
-            toHost:
-              ingresses:
-                enabled: true
-              persistentVolumes:
-                enabled: true
-            fromHost:
-              storageClasses:
-                enabled: true
-              ingressClasses:
-                enabled: true
-    - name: report
-      value:
-        command: |
-          cd $(workspaces.source.path)/testing
-          allure generate --clean
+          # concurrency=2: the earlier flakiness blamed on contention was actually a
+          # DNS bug (Go resolver bypassed nss_wrapper), now fixed by CGO+GODEBUG; the
+          # 16C32G VM easily fits 2 sonarqube stacks (~2.6Gi heap each).
+          export GODOG_ARGS="--godog.concurrency=2 --godog.format=allure"
 
-          echo "Listing contents of report directory"
-          ls -al
-        path: testing/allure-report
+          # nss_wrapper: make ingress hostnames (add-host.sh writes them into
+          # $NSS_WRAPPER_HOSTS) resolvable by the scan subprocesses (curl + Java
+          # sonar-scanner). Seed the wrapper hosts from /etc/hosts, then LD_PRELOAD
+          # libnss_wrapper so every subprocess resolves via that writable file.
+          export NSS_WRAPPER_HOSTS=/tmp/nss_hosts
+          # nss_wrapper cannot parse comment lines; strip them (k8s /etc/hosts has a
+          # leading "# Kubernetes-managed hosts file" comment that aborts the parse).
+          grep -vE '^[[:space:]]*(#|$)' /etc/hosts > "$NSS_WRAPPER_HOSTS" 2>/dev/null || :
+          [ -s "$NSS_WRAPPER_HOSTS" ] || printf '127.0.0.1\tlocalhost\n' > "$NSS_WRAPPER_HOSTS"
+          NSSLIB="$(find /usr/lib /lib -name 'libnss_wrapper.so*' 2>/dev/null | head -1)"
+          [ -n "$NSSLIB" ] && export LD_PRELOAD="$NSSLIB"
+          rc=0
+          make test || rc=$?
+
+          # Render the Allure HTML report from the results the godog allure formatter
+          # wrote, so the report-server can serve allure-report/index.html. The shared
+          # pipeline expects run-test to render its own report; sonar overrides `test`
+          # (bypassing run-e2e.sh), so we render here. Runs regardless of test outcome
+          # (a failed run's report is the useful one). reportUpload.dirs ships it.
+          if command -v allure >/dev/null 2>&1; then
+            allure generate allure-results --clean -o allure-report && ls -al allure-report || true
+          else
+            echo "allure CLI not found; skipping report render"
+          fi
+          exit $rc
+    - name: reportUpload
+      value:
+        endpoint: ""
+        bucket: ""
+        component: ""
+        dirs: "testing/allure-report testing/allure-results"
+        pathTemplate: "e2e-report/{component}/{time}"
+        preCommand: ""
+        # The shared pipeline's baked default baseURL (:30880) is the
+        # alauda-pipelines-build report-server, which does NOT serve this project's
+        # bucket (returns 404). This project uploads to the toolchain-build cache,
+        # served by the alauda-devops-toolchain-build report-server on :30884.
+        baseURL: "http://10.68.120.42:30884"
+    - name: vmLabels
+      value:
+        - "purpose=sonarqube-community-e2e"
   workspaces:
-    - name: kube-config
-      volumeClaimTemplate:
-        spec:
-          accessModes:
-            - ReadWriteMany
-          resources:
-            requests:
-              storage: 50Mi
-    - name: cache
-      persistentVolumeClaim:
-        claimName: build-cache
-      subPath: golang
     - name: source
       volumeClaimTemplate:
         spec:
-          storageClassName: topolvm
           accessModes:
             - ReadWriteOnce
+          storageClassName: sc-topolvm
           resources:
             requests:
-              storage: 1Gi
-    - name: upload-conf
-      secret:
-        secretName: upload-allure-report-conf
-    - name: registryconfig
-      secret:
-        secretName: build-harbor.kauto.docfj
+              storage: 2Gi
+    - name: cache
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: sc-topolvm
+          resources:
+            requests:
+              storage: 10Gi
     - name: basic-auth
+      csi:
+        driver: connectors-csi
+        readOnly: true
+        volumeAttributes:
+          connector.name: code-alauda-io
+          connector.namespace: alauda-devops-toolchain
+          configuration.names: "gitconfig"
+          token.expiration: 30m
+    - name: ctyun-creds
       secret:
-        secretName: github-credentials
-    - name: gitversion-config
+        secretName: ctyun-ecs-credentials
+    - name: registry-creds
+      secret:
+        secretName: "{{ registry_secret }}"
+    - name: vm-config
       configMap:
-        name: gitversion-config
+        name: ctyun-vm-config
+    - name: registry-config
+      secret:
+        secretName: "{{ registry_secret }}"
+    - name: cache-auth
+      csi:
+        driver: connectors-csi
+        readOnly: true
+        volumeAttributes:
+          configuration.names: "aws-env"
+          connectors: alauda-devops-toolchain/object-storage-build-cache
+          token.expiration: 60m
+    - name: report-credentials
+      csi:
+        driver: connectors-csi
+        readOnly: true
+        volumeAttributes:
+          configuration.names: "aws-env"
+          connectors: alauda-devops-toolchain/object-storage-build-cache
+          token.expiration: 60m

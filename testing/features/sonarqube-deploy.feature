@@ -27,7 +27,9 @@
         并且 "Sonarqube 组件" 资源检查通过
             | kind        | apiVersion | name                     | path            | value | interval | timeout |
             | Deployment  | apps/v1    | sonarqube-test-sonarqube   | $.spec.replicas | 1     | 30s      | 10m     |
+            | Deployment  | apps/v1    | sonarqube-test-sonarqube   | $.spec.strategy.type | Recreate | 30s | 10m |
+            | PersistentVolumeClaim | v1 | sonarqube-pvc | $.spec.accessModes[0] | ReadWriteOnce | 30s | 10m |
         并且 "sonarqube-test" 实例资源检查通过
         并且 执行 "Sonarqube 官方 e2e" 脚本成功
           | command                                                                                                                                                 |
-          | bash -x scripts/run-sonar-e2e.sh http://<node.ip.random.readable>:<nodeport.http> admin 07Apples@07Apples@ |
+          | bash scripts/run-sonar-e2e.sh http://<node.ip.random.readable>:<nodeport.http> admin 07Apples@07Apples@ |

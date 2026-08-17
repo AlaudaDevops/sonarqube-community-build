@@ -29,6 +29,9 @@
       - testdata/snippets/tpl-values-storage-sc.yaml
       - testdata/values-network-http.yaml
       """
+    并且 执行 "等待 SonarQube 就绪" 脚本成功
+      | command                                            |
+      | bash scripts/wait-for-up.sh http://test-sonarqube-ingress-http.example.com |
     那么 "sonarqube" 可以正常访问
       """
       url: http://test-sonarqube-ingress-http.example.com
@@ -64,6 +67,9 @@
     并且 已添加域名解析
       | domain                         | ip           |
       | test-sonarqube-ingress-https.example.com | <ingress-ip> |
+    并且 执行 "添加 DNS 解析" 脚本成功
+    | command                                                                         |
+    | bash ./scripts/add-host.sh <ingress-ip> test-sonarqube-ingress-https.example.com |
     并且 命名空间 "testing-sonarqube-https-<template.{{randAlphaNum 4 | toLower}}>" 已存在
     并且 已导入 "SonarQube 数据库" 资源: "./testdata/resources/pg-postgresql.yaml"
     并且 已导入 "初始化 SonarQube 数据的 job" 资源: "./testdata/resources/job-init-sonar-db.yaml"
@@ -80,6 +86,9 @@
       - testdata/snippets/tpl-values-storage-sc.yaml
       - testdata/values-network-https.yaml
       """
+    并且 执行 "等待 SonarQube 就绪" 脚本成功
+      | command                                            |
+      | bash scripts/wait-for-up.sh https://test-sonarqube-ingress-https.example.com |
     那么 "sonarqube" 可以正常访问
       """
       url: https://test-sonarqube-ingress-https.example.com
@@ -106,6 +115,9 @@
       - testdata/snippets/tpl-values-storage-sc.yaml
       - testdata/values-network-nodeport.yaml
       """
+    并且 执行 "等待 SonarQube 就绪" 脚本成功
+      | command                                            |
+      | bash scripts/wait-for-up.sh http://<node.ip.random.readable>:<nodeport.http> |
     那么 "sonarqube" 可以正常访问
       """
       url: http://<node.ip.random.readable>:<nodeport.http>

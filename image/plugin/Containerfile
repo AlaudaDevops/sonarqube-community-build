@@ -1,4 +1,4 @@
-FROM build-harbor.alauda.cn/ops/alpine:3.21.5-alauda-202601301100
+FROM registry-dev.alauda.io/base-images/alpine:3.21.5-alauda-202601301100
 
 # when install sonarqube-community-branch-plugin need update https://github.com/mc1arke/sonarqube-community-branch-plugin/tree/26.1.0?tab=readme-ov-file#manual-install
 ARG SONARQUBE_WEB_VERSION=26.1.0

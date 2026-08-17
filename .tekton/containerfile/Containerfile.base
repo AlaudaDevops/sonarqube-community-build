@@ -1,4 +1,7 @@
-FROM hub-mirrors.alauda.cn/library/openjdk:26-ea-17-jdk-slim-bookworm
+# migration(sonarqube) P1/P2: hub-mirrors.alauda.cn (internal Docker Hub mirror,
+# unreachable from edge-build) -> docker.io/library (literal, pulled direct). Same
+# host+tag proven on the 2025 migration branch's test-base build.
+FROM registry-cache.alauda.io/library/openjdk:26-ea-17-jdk-slim-bookworm
 
 WORKDIR /app
 
