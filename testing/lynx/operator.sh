@@ -17,6 +17,24 @@ wait_for_csv_webhooks() {
     jq -r '.spec.webhookdefinitions[]?.clientConfig.service | [.namespace, .name] | @tsv')
 }
 
+select_operator_channel() {
+  local expected="$1" requested_channel="${2:-}"
+  jq -er --arg expected "${expected}" --arg requested "${requested_channel}" '
+    .status.defaultChannel as $default |
+    [.status.channels[] |
+      select(((.currentCSVDesc.version // "") | ltrimstr("v")) == $expected)] as $matches |
+    if $requested != "" then
+      [$matches[] | select(.name == $requested)] |
+      if length == 1 then .[0].name else empty end
+    elif ($default // "") != "" and any($matches[]; .name == $default) then
+      $default
+    elif ($matches | length) == 1 then
+      $matches[0].name
+    else
+      empty
+    end'
+}
+
 discover_operator_package() {
   local package_timeout deadline package_json candidates candidate_count expected_normalized
   package_timeout="$(remaining_timeout "${LYNX_PACKAGE_TIMEOUT}")"
@@ -50,10 +68,9 @@ discover_operator_package() {
   LYNX_PACKAGE_NAME="$(jq -er '.status.packageName' <<<"${package_json}")"
   LYNX_CATALOG_SOURCE="$(jq -er '.status.catalogSource' <<<"${package_json}")"
   LYNX_CATALOG_NAMESPACE="$(jq -er '.status.catalogSourceNamespace' <<<"${package_json}")"
-  LYNX_OPERATOR_CHANNEL="$(jq -er --arg expected "${expected_normalized}" '
-    [.status.channels[] | select(((.currentCSVDesc.version // "") | ltrimstr("v")) == $expected)] |
-    if length == 1 then .[0].name else empty end' <<<"${package_json}")" \
-    || fatal "expected version is not exposed by exactly one PackageManifest channel"
+  LYNX_OPERATOR_CHANNEL="$(select_operator_channel \
+    "${expected_normalized}" "${LYNX_OPERATOR_CHANNEL:-}" <<<"${package_json}")" \
+    || fatal "requested/default PackageManifest channel does not expose ${LYNX_EXPECTED_OPERATOR_VERSION} uniquely"
   LYNX_EXPECTED_CSV="$(jq -er --arg channel "${LYNX_OPERATOR_CHANNEL}" \
     '.status.channels[] | select(.name == $channel) | .currentCSV' <<<"${package_json}")" \
     || fatal "PackageManifest channel has no currentCSV"

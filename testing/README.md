@@ -58,6 +58,7 @@ ACP 登录、目标 Region kubeconfig 获取、Operator OLM 安装与就绪等�
 
 - `API_URL`、`USERNAME`、`PASSWORD`、`REGION_NAME`
 - `LYNX_EXPECTED_OPERATOR_VERSION`：必须与 PackageManifest 当前版本一致
+- `LYNX_OPERATOR_CHANNEL`：可选；指定时严格使用该 channel，未指定时优先使用 PackageManifest 的默认 channel
 
 常用可选变量：
 
