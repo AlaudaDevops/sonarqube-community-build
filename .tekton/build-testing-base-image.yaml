@@ -160,6 +160,7 @@ spec:
           - name: platform
             value:
               - linux/amd64
+              - linux/arm64
           - name: labels
             value:
               - ns=$(context.taskRun.namespace)
