@@ -51,30 +51,37 @@ done
 # shellcheck disable=SC1091
 [ -f "$REPO_ROOT/.env" ] && source "$REPO_ROOT/.env"
 
+# Trivy does not resolve Docker CLI contexts automatically.
+if [ -z "${DOCKER_HOST:-}" ] && command -v docker > /dev/null; then
+  DOCKER_HOST=$(docker context inspect --format '{{.Endpoints.docker.Host}}' 2>/dev/null) || DOCKER_HOST=""
+  export DOCKER_HOST
+fi
+
 if [ "${#IMAGES[@]}" -eq 0 ]; then
-  if [ -z "${HARBOR_REGISTRY_HOST:-}" ]; then
-    echo "ERROR: --image not given and HARBOR_REGISTRY_HOST is unset (see .env.example)" >&2
-    exit 1
-  fi
   if ! command -v yq > /dev/null; then
     echo "ERROR: --image not given and yq missing — cannot parse chart/values.yaml" >&2
     exit 1
   fi
-  TAG=$(yq -r '.global.images.app.tag // .global.images.sonar.tag // .global.images.sonarqube.tag' "$REPO_ROOT/chart/values.yaml")
-  if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
-    echo "ERROR: could not read image tag from chart/values.yaml" >&2
+  REGISTRY="${HARBOR_REGISTRY_HOST:-$(yq -r '.global.registry.address' "$REPO_ROOT/chart/values.yaml")}"
+  if [ -z "$REGISTRY" ] || [ "$REGISTRY" = "null" ]; then
+    echo "ERROR: could not read registry from chart/values.yaml" >&2
     exit 1
   fi
-  IMAGES=(
-    "${HARBOR_REGISTRY_HOST}/devops/sonarqube:${TAG}"
-    "${HARBOR_REGISTRY_HOST}/devops/sonarqube-plugins:${TAG}"
-  )
+  for KEY in sonarqube pluginPackage; do
+    REPOSITORY=$(yq -r ".global.images.${KEY}.repository" "$REPO_ROOT/chart/values.yaml")
+    TAG=$(yq -r ".global.images.${KEY}.tag" "$REPO_ROOT/chart/values.yaml")
+    if [ -z "$REPOSITORY" ] || [ "$REPOSITORY" = "null" ] || [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
+      echo "ERROR: could not read $KEY repository/tag from chart/values.yaml" >&2
+      exit 1
+    fi
+    IMAGES+=("${REGISTRY%/}/${REPOSITORY}:${TAG}")
+  done
 fi
 
 IGNORE_FLAG=""
 if [ -f "$TRIVYIGNORE" ]; then
   IGNORE_FLAG="--ignorefile $TRIVYIGNORE"
-  IGNORED=$(grep -cE '^(CVE-|GHSA-)' "$TRIVYIGNORE" 2>/dev/null || echo 0)
+  IGNORED=$(awk '/^(CVE-|GHSA-)/ { count++ } END { print count+0 }' "$TRIVYIGNORE")
   echo "==> Using $TRIVYIGNORE ($IGNORED entries)"
 fi
 
