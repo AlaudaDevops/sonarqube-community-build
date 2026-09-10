@@ -12,27 +12,25 @@ The repeatable steps below are scripted. **Do not re-implement them inline** —
 
 | Helper | Purpose |
 |---|---|
-| [`hack/sync-trivyignore.sh`](hack/sync-trivyignore.sh) | Pull approved CVE exemptions from Thanos and regenerate `.trivyignore`. |
 | [`hack/scan-image.sh`](hack/scan-image.sh) | Wrap `trivy image` with the project's standard flags + `.trivyignore`. |
 | [`hack/build-images.sh`](hack/build-images.sh) | Build the SonarQube source artifact and the two container images locally. |
 | [`hack/local-smoke-test.sh`](hack/local-smoke-test.sh) | Boot the rebuilt image against a throwaway Postgres, wait for `/api/system/status=UP`, scan logs for known-fatal patterns, then run a full Trivy scan and assert the vulnerability budget is met. |
 | [`image/community-build/jar-tools.sh`](image/community-build/jar-tools.sh) | `replace` / `overlay` / `overlay-from-maven` subcommands used inside the Containerfile. |
 | [`image/community-build/patch-lodash-cve-2025-13465.py`](image/community-build/patch-lodash-cve-2025-13465.py) | In-place lodash patcher. |
 
-## Step 0: Prep & sync exemptions
+## Step 0: Review the checked-in exemption snapshot
 
-Copy `.env.example` to `.env` once per checkout and fill in the Thanos plugin name (the API silently returns `{"data":[]}` for any string, so confirm the value with the platform team before trusting an empty result).
+The repository contains the one-time exemption snapshot in [`.trivyignore`](.trivyignore).
+Treat this file as the sole source of vulnerability exemptions for this workflow.
+Do not fetch exemptions from Thanos or regenerate the file automatically.
 
 ```bash
-cp .env.example .env
-$EDITOR .env
-
-./hack/sync-trivyignore.sh --dry-run            # preview
-./hack/sync-trivyignore.sh                      # write .trivyignore
-git diff -- .trivyignore                        # review and commit if changed
+git diff -- .trivyignore
 ```
 
-If Thanos is unreachable or returns an unexpectedly empty list, **stop**. Do not continue with a stale `.trivyignore` — that risks silencing a regression.
+Any new entry requires explicit review and a short reason in a neighboring comment.
+Keep entries limited to vulnerabilities with no available fix or confirmed scanner
+false positives. Never add a CVE just to make a scan pass.
 
 ## Step 1: Branch out
 
@@ -84,13 +82,13 @@ Use this decision table **in priority order** — always pick the earliest optio
 | Bundled SonarQube/SonarSource plugin in `lib/extensions/sonar-X-plugin-Y.jar` | First, check if a newer plugin release ships the fix (download the candidate jar and inspect its `META-INF/maven/.../jackson-core/pom.properties`); if yes, bump the dep version in `source/build.gradle`. If not, `overlay-from-maven` on the plugin jar. | [source/build.gradle](source/build.gradle) for the bump, or Containerfile for overlay. |
 | 3rd-party plugin we already fork (e.g. `sonarqube-community-branch-plugin`) | Switch the download URL in [image/plugin/plugins.txt](image/plugin/plugins.txt) to the AlaudaDevops fork build published in the internal Maven repo (host configured via `${NEXUS_HOST}` in your environment). | Search via Nexus REST: `GET https://${NEXUS_HOST}/service/rest/v1/search?repository=<repo>&name=<artifact>` to find the published path. |
 | 3rd-party plugin with no upstream fix and no existing fork | Fork to `AlaudaDevops/<repo>`, branch `alauda-<version>`, bump the offending dep, push and let the existing Tekton pipeline (e.g. `.tekton/build.yaml` in the fork) publish the patched jar to the internal Maven repo. Then update `plugins.txt` as above. Commit footer must include `Upstream-PR:` and `Cherry-picked-from:` if applicable. | New AlaudaDevops fork. |
-| No fix exists anywhere (latest upstream still vulnerable, or Trivy false positive on version parsing) | Submit an exemption to Thanos and re-run `./hack/sync-trivyignore.sh` — never edit `.trivyignore` by hand. | Thanos. |
+| No fix exists anywhere (latest upstream still vulnerable, or Trivy false positive on version parsing) | Add the CVE to `.trivyignore` with a short reason after review. | `.trivyignore`. |
 
 ### Known false positives / patterns
 
-- **`mssql-jdbc-X.jre11.jar`**: Trivy strips the `.jre11` qualifier and reports `X` as installed. The fixed-version list from Microsoft also uses `X.jre11`, so Trivy never matches them. Pin the highest available `X.jre11` in `source/build.gradle` and add the CVE to Thanos.
-- **`com.hazelcast:hazelcast` shaded jackson-core**: Hazelcast keeps the upstream `META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties` even though classes are relocated under `com/hazelcast/shaded/...`. Pure metadata false positive — Thanos exemption is the right answer when no Hazelcast bump is available.
-- **SonarSource plugin shaded jackson-core**: The latest plugin release sometimes still ships the previous patch (e.g. `jackson-core 2.21.0` while the fix lands in 2.21.1+). `overlay-from-maven` the fix into the plugin jar, otherwise Thanos exemption + recheck next cycle.
+- **`mssql-jdbc-X.jre11.jar`**: Trivy strips the `.jre11` qualifier and reports `X` as installed. The fixed-version list from Microsoft also uses `X.jre11`, so Trivy never matches them. Pin the highest available `X.jre11` in `source/build.gradle` and document the CVE in `.trivyignore` only when no further fix is available.
+- **`com.hazelcast:hazelcast` shaded jackson-core**: Hazelcast keeps the upstream `META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties` even though classes are relocated under `com/hazelcast/shaded/...`. Pure metadata false positive — record it in `.trivyignore` with evidence when no Hazelcast bump is available.
+- **SonarSource plugin shaded jackson-core**: The latest plugin release sometimes still ships the previous patch (e.g. `jackson-core 2.21.0` while the fix lands in 2.21.1+). `overlay-from-maven` the fix into the plugin jar, otherwise record the confirmed false positive in `.trivyignore` and recheck next cycle.
 
 ## Step 4: Apply the fixes
 
@@ -155,7 +153,7 @@ jq -r '.Results[]?.Vulnerabilities[]? |
 
 Trivy auto-loads `.trivyignore` from the working directory, so run the script from the repo root if you rely on it.
 
-If anything is still flagged: route it back through Step 3's table. Don't cheat by silencing real CVEs in `.trivyignore` — submit an exemption to Thanos and let `sync-trivyignore.sh` regenerate the file.
+If anything is still flagged: route it back through Step 3's table. Don't silence a fixable CVE in `.trivyignore`; only add a reviewed, documented residual or false positive.
 
 ## Step 7: Smoke test (required before PR — no exceptions)
 
@@ -253,7 +251,7 @@ gh pr create --repo AlaudaDevops/sonarqube-community-build \
 PR body should include:
 - before/after Trivy counts per image,
 - the per-fix mapping (CVE → strategy → file),
-- explicit notes for any new `.trivyignore` entry (with the matching Thanos exemption link),
+- explicit notes for any new `.trivyignore` entry and the evidence supporting it,
 - a test plan (`./hack/scan-image.sh` ✓, CI scan, smoke test).
 
 If upstream `alauda-2026.1.0` advances while the PR is open, prefer `git reset --hard upstream/alauda-2026.1.0 && re-apply your delta` over a many-conflict rebase — vuln-fix PRs touch the same Containerfile that other vuln-fix PRs are also rewriting.
@@ -270,6 +268,6 @@ If upstream `alauda-2026.1.0` advances while the PR is open, prefer `git reset -
 | [source/build.gradle](source/build.gradle) | Top-level dependency BOM: `jackson-bom`, `mssql-jdbc`, `sonar-*-plugin`, `com.sun.mail:jakarta.mail`. |
 | [source/gradle.properties](source/gradle.properties) | `elasticSearchServerVersion` lives here. |
 | [source/sonar-application/build.gradle](source/sonar-application/build.gradle) | ES tarball repackaging — exclude lists for unwanted ES binaries. |
-| [.trivyignore](.trivyignore) | Documented residuals only — synced from Thanos via `hack/sync-trivyignore.sh`. |
+| [.trivyignore](.trivyignore) | Checked-in exemption snapshot and manually reviewed documented residuals only. |
 | [.tekton/pipeline/sonar-image-build.yaml](.tekton/pipeline/sonar-image-build.yaml) | The pipeline that actually scans on PR (Trivy task, gate config). |
-| [.env.example](.env.example) | Template for `.env`; documents `THANOS_API_HOST`, `THANOS_PLUGIN`, `THANOS_BRANCH`, `HARBOR_REGISTRY_HOST`. |
+| [.env.example](.env.example) | Template for `.env`; documents registry and Nexus settings used by the build and scan helpers. |

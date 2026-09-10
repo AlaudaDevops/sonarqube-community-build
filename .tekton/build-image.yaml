@@ -213,7 +213,12 @@ spec:
           - name: cacheFrom
             value: $(params.git-url)
           - name: cachePatterns
-            value: "source/gradle/wrapper/gradle-wrapper.properties,source/build.gradle,source/settings.gradle,source/gradle.properties"
+            # `.tekton/build-image.yaml` is included so any pipeline change (including
+            # this cache-buster) rolls the S3 key -- an earlier run wrote a corrupt
+            # elasticsearch tarball to the cache that broke build-sonar-app on every
+            # replay; changing the pipeline is the escape hatch since we can't purge
+            # the S3 object from here.
+            value: ".tekton/build-image.yaml,source/gradle/wrapper/gradle-wrapper.properties,source/build.gradle,source/settings.gradle,source/gradle.properties"
         workspaces:
           - name: source
             workspace: source
@@ -277,7 +282,13 @@ spec:
               }
               EOF
       - name: build-sonar-app
-        timeout: 60m
+        # 60m was tight for cache-MISS runs -- sonar-image-hcslv timed out at 60m
+        # still downloading elasticsearch-8.19.21-linux-x86_64.tar.gz (682MiB) from
+        # artifacts.elastic.co (edge-build->public egress is unpredictable). Cache-HIT
+        # runs finish well under 15m so this only affects first runs after a cache
+        # bust; not adding retries because a retry redoes the whole gradle build,
+        # doubling wall clock for a network-flake failure.
+        timeout: 120m
         retries: 0
         runAfter:
           - git-clone
@@ -304,6 +315,26 @@ spec:
               if [ "$(params.clean-cache)" == "true" ]; then
                 rm -rf $(workspaces.cache.path)/gradle/modules-2/* $(workspaces.cache.path)/gradle/wrapper/*
               fi
+
+              # cache-upload/@0.1 has repeatedly returned a corrupted
+              # elasticsearch-*-linux-x86_64.tar.gz (~682MiB) on subsequent
+              # cache-HIT runs (runs 5wjlf/l476z/hcslv/9rchb/p9ghf all failed
+              # here with `Unable to expand TAR ... compressed in an unexpected
+              # way`), even though the run that uploaded it built successfully.
+              # Validate each restored .tar.gz with `gzip -t` and drop bad ones
+              # so gradle re-downloads the missing artifact from artifacts.elastic.co
+              # instead of failing at :sonar-application:zip.
+              es_files=$(find $(workspaces.cache.path)/gradle/modules-2/files-2.1/elasticsearch -type f -name '*.tar.gz' 2>/dev/null || true)
+              for f in $es_files; do
+                if ! gzip -t "$f" 2>/dev/null; then
+                  echo "[cache-sanity] corrupted tarball, removing: $f"
+                  rm -f "$f"
+                  # Gradle also stores a .sha1/.md5 sibling that becomes stale
+                  # once the artifact is gone; drop the whole hash-dir so a
+                  # clean re-download can repopulate it.
+                  rm -rf "$(dirname "$f")"
+                fi
+              done
 
               export SONARQUBE_VERSION=$(params.sonarqube-version)
               export BUILD_NUMBER="${SONARQUBE_VERSION##*.}"
@@ -533,6 +564,11 @@ spec:
             value: "true"
           - name: skipDbUpdate
             value: "false"
+          # sonar-image is ~918MiB; trivy's 5m per-target default trips
+          # `context deadline exceeded` during layer walk. 30m has headroom
+          # under the task-level 60m timeout + retries: 2.
+          - name: timeout
+            value: "30m"
       # migration(sonarqube): re-add the post-build chart auto-commit that the
       # pre-migration pipeline did via extras/git-cli@0.4 (absent on edge-build). The
       # WORKING version is catalog/git-cli@0.5 (the shared clone-image-build-test-scan
@@ -640,7 +676,8 @@ spec:
           - name: fetched
             value: $(tasks.cache-fetch.results.fetched)
           - name: cachePatterns
-            value: "source/gradle/wrapper/gradle-wrapper.properties,source/build.gradle,source/settings.gradle,source/gradle.properties"
+            # Must match cache-fetch's cachePatterns (same hash inputs -> same S3 key).
+            value: ".tekton/build-image.yaml,source/gradle/wrapper/gradle-wrapper.properties,source/build.gradle,source/settings.gradle,source/gradle.properties"
         workspaces:
           - name: source
             workspace: source

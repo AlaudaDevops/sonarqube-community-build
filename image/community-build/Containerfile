@@ -20,12 +20,7 @@ ENV DOCKER_RUNNING="true" \
 # Separate stage to use variable expansion
 ENV ES_TMPDIR="${SQ_TEMP_DIR}"
 
-# migration(sonarqube): apt version pins removed. The exact patch versions the upstream
-# pinned (curl=8.5.0-2ubuntu10.9, openssl=3.0.13-0ubuntu3.11, ...) only exist on the
-# frozen hub-mirrors.alauda.cn snapshot; on docker.io's live noble archive (this base is
-# now docker.io, hub-mirrors being unreachable from edge-build) those patch versions have
-# rolled forward and been GC'd -> "Version ... not found". Ubuntu security updates are
-# monotonic, so the current versions are >= the pins and retain the same CVE fixes.
+# Security update pins verified against the Noble archive on 2026-09-09.
 RUN set -eux; \
     deluser ubuntu; \
     useradd --system --uid 1000 --gid 0 sonarqube; \
@@ -33,23 +28,59 @@ RUN set -eux; \
     apt-get --no-install-recommends -y install \
         bash \
         fonts-dejavu \
-        gnupg \
+        gnupg=2.4.4-2ubuntu17.6 \
+        gpgv=2.4.4-2ubuntu17.6 \
         unzip \
-        curl \
+        curl=8.5.0-2ubuntu10.13 \
         dpkg \
-        libcurl4t64 \
-        libgcrypt20 \
+        libcurl4t64=8.5.0-2ubuntu10.13 \
+        libgcrypt20=1.10.3-2ubuntu0.2 \
         liblzma5 \
         libnghttp2-14 \
-        openssl \
-        libssl3t64 \
+        openssl=3.0.13-0ubuntu3.15 \
+        libssl3t64=3.0.13-0ubuntu3.15 \
         libfreetype6 \
         libgnutls30t64 \
         libpng16-16t64 \
-        libssh-4 \
-        libsystemd0 \
-        libudev1 \
+        libssh-4=0.10.6-2ubuntu0.5 \
+        libsystemd0=255.4-1ubuntu8.17 \
+        libudev1=255.4-1ubuntu8.17 \
         libcap2 \
+        coreutils=9.4-3ubuntu6.3 \
+        libbz2-1.0=1.0.8-5.1ubuntu0.1 \
+        libncursesw6=6.4+20240113-1ubuntu2.2 \
+        libtinfo6=6.4+20240113-1ubuntu2.2 \
+        ncurses-base=6.4+20240113-1ubuntu2.2 \
+        ncurses-bin=6.4+20240113-1ubuntu2.2 \
+        zlib1g=1:1.3.dfsg-3.1ubuntu2.2 \
+        util-linux=2.39.3-9ubuntu6.6 \
+        bsdutils=1:2.39.3-9ubuntu6.6 \
+        libblkid1=2.39.3-9ubuntu6.6 \
+        libmount1=2.39.3-9ubuntu6.6 \
+        libsmartcols1=2.39.3-9ubuntu6.6 \
+        libuuid1=2.39.3-9ubuntu6.6 \
+        mount=2.39.3-9ubuntu6.6 \
+        diffutils=1:3.10-1ubuntu0.1 \
+        gzip=1.12-1ubuntu3.2 \
+        libattr1=1:2.5.2-1ubuntu0.1 \
+        libc-bin=2.39-0ubuntu8.8 \
+        libc6=2.39-0ubuntu8.8 \
+        locales=2.39-0ubuntu8.8 \
+        libkrb5-3=1.20.1-6ubuntu2.8 \
+        libgssapi-krb5-2=1.20.1-6ubuntu2.8 \
+        libk5crypto3=1.20.1-6ubuntu2.8 \
+        libkrb5support0=1.20.1-6ubuntu2.8 \
+        p11-kit=0.25.3-4ubuntu2.2 \
+        libp11-kit0=0.25.3-4ubuntu2.2 \
+        p11-kit-modules=0.25.3-4ubuntu2.2 \
+        libpam0g=1.5.3-5ubuntu5.7 \
+        libpam-modules=1.5.3-5ubuntu5.7 \
+        libpam-modules-bin=1.5.3-5ubuntu5.7 \
+        libpam-runtime=1.5.3-5ubuntu5.7 \
+        libsqlite3-0=3.45.1-1ubuntu2.7 \
+        perl-base=5.38.2-3.2ubuntu0.4 \
+        tar=1.35+dfsg-3ubuntu0.4 \
+        wget=1.21.4-1ubuntu4.5 \
         sed;
 
 COPY --chown=sonarqube:sonarqube source/sonar-application/build/distributions/sonar-application-${SONARQUBE_VERSION}.zip /home/sonarsource/
@@ -74,18 +105,25 @@ RUN set -eux; \
     apt-get remove -y gnupg unzip; \
     rm -rf /var/lib/apt/lists/*;
 
-# ES 8.19.16 ships netty 4.1.133.Final; several artifacts still need 4.1.135.Final.
+# ES 8.19.21 still bundles Netty 4.1.135.Final, affected by CVE-2026-59903.
+# Keep the bundled Java artifacts aligned when applying the patch release.
 # renovate: datasource=maven depName=netty-handler lookupName=io.netty:netty-handler
-ARG NETTY_VERSION=4.1.135.Final
+ARG NETTY_VERSION=4.1.137.Final
 RUN set -eux; \
-    for d in ${SONARQUBE_HOME}/elasticsearch/modules/transport-netty4 \
-             ${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference \
-             ${SONARQUBE_HOME}/elasticsearch/modules/x-pack-security; do \
-        /tmp/jar-tools.sh replace "io.netty" "netty-handler"   4.1.133.Final "$NETTY_VERSION" "$d"; \
-        /tmp/jar-tools.sh replace "io.netty" "netty-codec-http" 4.1.133.Final "$NETTY_VERSION" "$d"; \
-    done; \
-    /tmp/jar-tools.sh replace "io.netty" "netty-codec-http2"  4.1.133.Final "$NETTY_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference"; \
-    /tmp/jar-tools.sh replace "io.netty" "netty-resolver-dns" 4.1.133.Final "$NETTY_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference"
+    find "${SONARQUBE_HOME}/elasticsearch" -name 'netty-*-4.1.135.Final.jar' -printf '%f\n' | sort -u | \
+    while IFS= read -r filename; do \
+        /tmp/jar-tools.sh replace "io.netty" "${filename%-4.1.135.Final.jar}" \
+            4.1.135.Final "$NETTY_VERSION" "${SONARQUBE_HOME}/elasticsearch"; \
+    done
+
+# ES 8.19.21 still bundles agent 1.55.6 with a vulnerable Log4j API.
+# renovate: datasource=maven depName=elastic-apm-agent-java8 lookupName=co.elastic.apm:elastic-apm-agent-java8
+ARG ELASTIC_APM_AGENT_VERSION=1.57.0
+RUN set -eux; \
+    for agent in "${SONARQUBE_HOME}"/elasticsearch/modules/apm/elastic-apm-agent-java8-*.jar; do \
+        test -f "$agent"; \
+        curl -fsSL -o "$agent" "https://repo1.maven.org/maven2/co/elastic/apm/elastic-apm-agent-java8/${ELASTIC_APM_AGENT_VERSION}/elastic-apm-agent-java8-${ELASTIC_APM_AGENT_VERSION}.jar"; \
+    done
 
 # renovate: datasource=maven depName=commons-lang3 lookupName=org.apache.commons:commons-lang3
 ARG COMMONS_LANG3_VERSION=3.18.0
@@ -96,14 +134,9 @@ RUN set -eux; \
     /tmp/jar-tools.sh replace "com.sun.mail" "jakarta.mail" 1.6.3 "$JAKARTA_MAIL_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-security"
 
 # renovate: datasource=maven depName=jackson-core lookupName=com.fasterxml.jackson.core:jackson-core
-ARG JACKSON_CORE_FIXED_VERSION=2.21.2
+ARG JACKSON_CORE_FIXED_VERSION=2.21.5
 RUN set -eux; \
-    /tmp/jar-tools.sh replace "com.fasterxml.jackson.core" "jackson-core" 2.15.0 "$JACKSON_CORE_FIXED_VERSION" "${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference/"; \
-    /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "$JACKSON_CORE_FIXED_VERSION" "${SONARQUBE_HOME}/elasticsearch/bin/elasticsearch-sql-cli-8.19.16.jar"; \
-    /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "$JACKSON_CORE_FIXED_VERSION" "${SONARQUBE_HOME}/elasticsearch/lib/elasticsearch-x-content-8.19.16.jar" "IMPL-JARS/x-content/jackson-core-2.17.2.jar"; \
-    /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "$JACKSON_CORE_FIXED_VERSION" "${SONARQUBE_HOME}/elasticsearch/lib/tools/plugin-cli/elasticsearch-x-content-8.19.16.jar" "IMPL-JARS/x-content/jackson-core-2.17.2.jar"; \
-    /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "$JACKSON_CORE_FIXED_VERSION" "${SONARQUBE_HOME}/lib/sonar-application-${SONARQUBE_VERSION}.jar"; \
-    /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "$JACKSON_CORE_FIXED_VERSION" "${SONARQUBE_HOME}/lib/extensions/sonar-python-plugin-5.19.0.32098.jar"
+    /tmp/jar-tools.sh overlay-from-maven "com.fasterxml.jackson.core" "jackson-core" "$JACKSON_CORE_FIXED_VERSION" "${SONARQUBE_HOME}/lib/sonar-application-${SONARQUBE_VERSION}.jar"
 
 COPY --chown=root:root --chmod=555 image/community-build/entrypoint.sh ${SONARQUBE_HOME}/docker/
 

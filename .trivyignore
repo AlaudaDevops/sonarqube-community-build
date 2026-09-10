@@ -1,0 +1,5 @@
+# Trivy exemption snapshot captured once from the vulnerability service.
+# scope: sonarqube-ce-test   branch: release-2026.1
+# Maintain this file in the repository; do not regenerate it automatically.
+
+# (no approved exemptions for this branch)

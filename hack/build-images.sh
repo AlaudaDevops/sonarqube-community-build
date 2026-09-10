@@ -19,6 +19,7 @@ set -euo pipefail
 # where SONAR_VERSION = "${BASE_VERSION}.${BUILD_NUMBER}" (e.g. 26.1.0.118079).
 # Pass --sonar-version to override the full string, otherwise it is derived
 # from gradle.properties + --build-number.
+# GRADLE_INIT_SCRIPT optionally supplies local repository/cache configuration.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -97,7 +98,10 @@ build_main() {
         PATH="$java_home/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" \
         HOME="$HOME" \
         JAVA_HOME="$java_home" \
-        bash -c "cd '$REPO_ROOT/source' && ./gradlew :sonar-application:build -DbuildNumber='$BUILD_NUMBER' -x test --console plain --max-workers=4 --build-cache"
+        bash "$REPO_ROOT/source/gradlew" --project-dir "$REPO_ROOT/source" \
+        :sonar-application:build "-DbuildNumber=$BUILD_NUMBER" -x test \
+        --console plain --max-workers=4 --build-cache \
+        ${GRADLE_INIT_SCRIPT:+--init-script "$GRADLE_INIT_SCRIPT"}
     fi
 
     if [ ! -f "$zip" ]; then
@@ -118,6 +122,7 @@ build_main() {
 build_plugin() {
   echo "==> docker build sonarqube-plugins:$TAG"
   docker build $NO_CACHE \
+    ${BUILD_PLATFORM:+--platform "$BUILD_PLATFORM"} \
     -t "sonarqube-plugins:$TAG" \
     -f image/plugin/Containerfile \
     .
