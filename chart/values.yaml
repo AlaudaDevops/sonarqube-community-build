@@ -7,13 +7,13 @@ global:
     sonarqube:
       code: github.com/AlaudaDevops/docker-sonarqube
       repository: alauda-devops-toolchain/sonarqube/sonarqube-community-build
-      tag: v2026.1.0-ga226ba6
+      tag: v2026.1.0-g6cb4b67
       support_arm: true
       thirdparty: true
     pluginPackage:
       code: github.com/AlaudaDevops/docker-sonarqube
       repository: alauda-devops-toolchain/sonarqube/sonarqube-community-build-plugins
-      tag: v2026.1.0-ga226ba6
+      tag: v2026.1.0-g6cb4b67
       support_arm: true
       thirdparty: true
     busybox:
