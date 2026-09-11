@@ -51,6 +51,16 @@ spec:
         containerfilePath: testing/Containerfile
         context: "."
         workingDir: "."
+    # Multi-arch: env1 (CTYun IDC) is an arm64 tier, so the release-test PR
+    # image needs an arm64 manifest to run there (an amd64-only image errors
+    # with `exec /usr/bin/sh: exec format error` when kubelet pulls it on
+    # arm64 nodes). Matches the operator sibling's own
+    # sonarqube-ce-operator/.tekton/integration-test.yaml buildTestImagePlatform
+    # and mirrors nexus-ce-operator's pattern.
+    - name: buildTestImagePlatform
+      value:
+        - linux/amd64
+        - linux/arm64
     - name: buildTestImageBuildArgs
       value:
         # GOPROXY injected from the gomod_proxy PaC global (renders to gomod.alauda.io
@@ -141,6 +151,14 @@ spec:
     - name: vmLabels
       value:
         - "purpose=sonarqube-community-e2e"
+    # The edge-build shared ConfigMap's default flavor (s3.4xlarge.2) and its s6
+    # equivalent are currently sold out in CTYun -- provision-ctyun-vm silently
+    # sits until timeout. Pin to another relay-supported 16C/32G flavor so
+    # integration-test can actually get a VM. Same rationale as the operator
+    # sibling (sonarqube-ce-operator/.tekton/integration-test.yaml).
+    - name: vmConfigOverrides
+      value:
+        - "flavor=s2.4xlarge.2"
   workspaces:
     - name: source
       volumeClaimTemplate:
