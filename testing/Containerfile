@@ -108,7 +108,19 @@ RUN ln -s /app/bin/sonarqube-e2e.test /app/testing/sonarqube-e2e.test
 # boundaries in Dockerfile/Containerfile syntax).
 ARG PLAYWRIGHT_DOWNLOAD_HOST=https://registry.npmmirror.com/-/binary/playwright
 ENV PLAYWRIGHT_DOWNLOAD_HOST=${PLAYWRIGHT_DOWNLOAD_HOST}
+# Pre-install the Playwright driver and Chromium into a fixed, world-readable
+# location so the target release-test Pod (uid 65532, HOME=/home/nonroot) finds
+# them at runtime without hitting the internet. Without this pin, `playwright
+# install` runs as root here and puts everything under /root/.cache, which the
+# nonroot runtime user can't discover; playwright-go then re-runs the download
+# on first browser open and fails with "could not install driver: could not
+# download driver from ...: i/o timeout" on air-gapped CTYun/IDC tiers
+# (harbor's charts/current/Containerfile handles this via ENV HOME=/app + chown;
+# same intent, PLAYWRIGHT_*_PATH is more explicit than relying on $HOME).
+ENV PLAYWRIGHT_DRIVER_PATH=/opt/ms-playwright-go
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 RUN /app/bin/playwright install chromium --with-deps \
+    && chmod -R o+rX /opt/ms-playwright-go /opt/ms-playwright \
     && chmod 0755 /opt/sonarqube-e2e/maven-seed/import-maven-seed.sh \
     && chmod 0755 /app/lynx-entrypoint.sh /app/lynx/*.sh
 
