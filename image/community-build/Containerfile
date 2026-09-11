@@ -105,6 +105,29 @@ RUN set -eux; \
     apt-get remove -y gnupg unzip; \
     rm -rf /var/lib/apt/lists/*;
 
+# The bundled sonar-application zip only contains the linux-x86_64 Elasticsearch
+# tarball (source/sonar-application/build.gradle:90 hardcodes -linux-x86_64), so the
+# arm64 image is missing lib/platform/linux-aarch64/*.so and ES 8.19.21 NativeAccess
+# crashes on aarch64 hosts (UnsatisfiedLinkError libzstd.so). Overlay the aarch64
+# platform natives from the matching elastic.co tarball at image-build time when
+# TARGETARCH=arm64. Introduced by fc4f4b51 (migrate to edge-build PaC, multi-arch)
+# without teaching the upstream gradle build to fetch the aarch64 tarball.
+ARG TARGETARCH
+ARG ES_VERSION=8.19.21
+RUN set -eux; \
+    if [ "${TARGETARCH:-$(dpkg --print-architecture)}" = "arm64" ]; then \
+        cd /tmp; \
+        curl -fsSLO "https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-${ES_VERSION}-linux-aarch64.tar.gz"; \
+        tar -xzf "elasticsearch-${ES_VERSION}-linux-aarch64.tar.gz" \
+            -C /tmp \
+            "elasticsearch-${ES_VERSION}/lib/platform/linux-aarch64"; \
+        cp -a "/tmp/elasticsearch-${ES_VERSION}/lib/platform/linux-aarch64" \
+            "${SONARQUBE_HOME}/elasticsearch/lib/platform/"; \
+        chown -R sonarqube:root "${SONARQUBE_HOME}/elasticsearch/lib/platform/linux-aarch64"; \
+        chmod -R 550 "${SONARQUBE_HOME}/elasticsearch/lib/platform/linux-aarch64"; \
+        rm -rf "/tmp/elasticsearch-${ES_VERSION}"* "/tmp/elasticsearch-${ES_VERSION}-linux-aarch64.tar.gz"; \
+    fi
+
 # ES 8.19.21 still bundles Netty 4.1.135.Final, affected by CVE-2026-59903.
 # Keep the bundled Java artifacts aligned when applying the patch release.
 # renovate: datasource=maven depName=netty-handler lookupName=io.netty:netty-handler
