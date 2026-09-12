@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
   name: sonar-image
-  annotations: {"pipelinesascode.tekton.dev/on-comment": "^((/test-all)|(/build-image))", "pipelinesascode.tekton.dev/on-cel-expression": "target_branch.matches(\"^(main|release-.*|alauda-.*)$\") &&\n!last_commit_title.contains(\"Auto-commit\") &&\n(\n  \"source/**\".pathChanged() ||\n  \"image/**\".pathChanged() ||\n  \".tekton/build-image.yaml\".pathChanged() ||\n  \".tekton/pipeline/sonar-image-build\".pathChanged()\n)", "pipelinesascode.tekton.dev/max-keep-runs": "5"}
+  annotations: {"pipelinesascode.tekton.dev/on-comment": "^((/test-all)|(/build-image))", "pipelinesascode.tekton.dev/on-cel-expression": "target_branch.matches(\"^(main|release-.*|alauda-.*)$\") &&\n!last_commit_title.contains(\"Auto-commit\") &&\n(\n  \"source/**\".pathChanged() ||\n  \"image/**\".pathChanged() ||\n  \".tekton/build-image.yaml\".pathChanged() ||\n  \".tekton/pipeline/sonar-image-build\".pathChanged()\n)", "pipelinesascode.tekton.dev/max-keep-runs": "5", "pipelinesascode.tekton.dev/concurrency-limit": "1"}
 spec:
   timeouts:
     pipeline: "2h"
@@ -88,32 +88,18 @@ spec:
     - name: registryconfig
       secret:
         secretName: "{{ registry_secret }}"
-    # migration(sonarqube): per-run PVC restored-from / uploaded-to the shared S3
-    # build-cache backend by the cache-fetch/cache-upload tasks (the static PVC
-    # sonar-build-cache never existed on edge-build, which left build-sonar-app Pending;
-    # and a node-local PVC gives no cross-node cache hit anyway). Mirrors the
-    # operator-build Pipeline's go-cache workspace.
+    # Static RWX PVC backed by cephfs (storage class `build-cache`) so the
+    # gradle dependency cache survives across runs without a round-trip through
+    # S3. The prior extras/cache-fetch + cache-upload flow bit us with silent
+    # partial-uploads (elasticsearch tarballs in 0ba10463, then
+    # sonar-javascript-plugin-11.7.1.36988-multi.jar truncated to exactly
+    # 100 MiB in v2026.1.0-g6cb4b67 / -g04b8a97 which poisoned the S3 cache
+    # for every subsequent build). concurrency-limit=1 above serializes
+    # writers so RWX is safe here. Same shape as build-cache-nexus /
+    # build-cache-tools already in the namespace.
     - name: cache
-      volumeClaimTemplate:
-        spec:
-          accessModes:
-            - ReadWriteOnce
-          storageClassName: sc-topolvm
-          resources:
-            requests:
-              storage: 10Gi
-    # migration(sonarqube): S3 build-cache credentials -- the object-storage-build-cache
-    # Connector (bucket platform-edge-alauda-devops-toolchain-build-cache), consumed as
-    # aws-env by cache-fetch/cache-upload. Same wiring as integration-test.yaml's
-    # cache-auth and the operator-build Pipeline.
-    - name: cache-auth
-      csi:
-        driver: connectors-csi
-        readOnly: true
-        volumeAttributes:
-          configuration.names: "aws-env"
-          connectors: alauda-devops-toolchain/object-storage-build-cache
-          token.expiration: 60m
+      persistentVolumeClaim:
+        claimName: sonar-build-cache
   # migration(sonarqube): the pre-migration PipelineRun referenced a separate, in-repo
   # custom Pipeline (.tekton/pipeline/sonar-image-build.yaml, pipelineRef: name:
   # sonar-image-build). edge-build's PaC controller only resolves inline pipelineSpec /
@@ -156,8 +142,6 @@ spec:
         description: "Workspace for Container configuration"
       - name: cache
         description: "Workspace for cache files"
-      - name: cache-auth
-        description: "S3 build-cache backend credentials (object-storage Connector)"
     tasks:
       - name: git-clone
         taskRef:
@@ -186,46 +170,6 @@ spec:
             workspace: source
           - name: basic-auth
             workspace: basic-auth
-      # migration(sonarqube): restore build-sonar-app's gradle cache from the shared S3
-      # build-cache backend before the build runs (extras/cache-fetch@0.1, the same task
-      # + wiring the operator-build Pipeline uses for its go-cache). Cache key =
-      # cacheFrom (repo url) + a hash of cachePatterns (the gradle dependency-defining
-      # files) -- a coarse key so most of the cache stays warm across commits; gradle
-      # itself reconciles any stale entries. `fetched`/`cacheSource` results feed
-      # cache-upload in `finally`.
-      - name: cache-fetch
-        timeout: 20m
-        retries: 1
-        runAfter:
-          - git-clone
-        taskRef:
-          resolver: hub
-          params:
-            - name: catalog
-              value: extras
-            - name: kind
-              value: task
-            - name: name
-              value: cache-fetch
-            - name: version
-              value: "0.1"
-        params:
-          - name: cacheFrom
-            value: $(params.git-url)
-          - name: cachePatterns
-            # `.tekton/build-image.yaml` is included so any pipeline change (including
-            # this cache-buster) rolls the S3 key -- an earlier run wrote a corrupt
-            # elasticsearch tarball to the cache that broke build-sonar-app on every
-            # replay; changing the pipeline is the escape hatch since we can't purge
-            # the S3 object from here.
-            value: ".tekton/build-image.yaml,source/gradle/wrapper/gradle-wrapper.properties,source/build.gradle,source/settings.gradle,source/gradle.properties"
-        workspaces:
-          - name: source
-            workspace: source
-          - name: cache
-            workspace: cache
-          - name: cache-auth
-            workspace: cache-auth
       # migration(sonarqube) P1 correction: registry.alauda.cn:60070/devops/nonroot/
       # chainguard/git:latest (the previous "fix", carried over from the in-cluster
       # clone-image-build-test-scan Pipeline CR's calculate-commit-sha task) is NOT
@@ -292,7 +236,6 @@ spec:
         retries: 0
         runAfter:
           - git-clone
-          - cache-fetch
         params:
           - name: script
             value: |
@@ -300,12 +243,12 @@ spec:
               set -e
 
               # Cache ONLY the expensive dependency downloads (caches/modules-2 + the
-              # gradle wrapper dists) via the S3 build cache -- NOT gradle's volatile
+              # gradle wrapper dists) via the persistent PVC -- NOT gradle's volatile
               # build-cache / generated-gradle-jars / daemon state. Restoring the whole
               # ~/.gradle inconsistently broke buildSrc:compileGroovy ("unable to resolve
               # org.gradle.api.tasks.testing.Test") on a warm cache while a cold cache
-              # built fine (57zt8 ok / h6pjq failed). cache-fetch restores these dirs into
-              # $(workspaces.cache.path)/gradle/*; drop any legacy whole-.gradle dir first.
+              # built fine (57zt8 ok / h6pjq failed). The workspace lives on cephfs and
+              # persists across runs; wire it into $HOME/.gradle via symlinks.
               rm -rf $(workspaces.cache.path)/cache
               mkdir -p $(workspaces.cache.path)/gradle/modules-2 $(workspaces.cache.path)/gradle/wrapper
               mkdir -p $HOME/.gradle/caches
@@ -316,22 +259,25 @@ spec:
                 rm -rf $(workspaces.cache.path)/gradle/modules-2/* $(workspaces.cache.path)/gradle/wrapper/*
               fi
 
-              # cache-upload/@0.1 has repeatedly returned a corrupted
-              # elasticsearch-*-linux-x86_64.tar.gz (~682MiB) on subsequent
-              # cache-HIT runs (runs 5wjlf/l476z/hcslv/9rchb/p9ghf all failed
-              # here with `Unable to expand TAR ... compressed in an unexpected
-              # way`), even though the run that uploaded it built successfully.
-              # Validate each restored .tar.gz with `gzip -t` and drop bad ones
-              # so gradle re-downloads the missing artifact from artifacts.elastic.co
-              # instead of failing at :sonar-application:zip.
+              # Defense-in-depth for the artifact-corruption class that bit us on the
+              # old S3-backed cache (elasticsearch tarballs, then
+              # sonar-javascript-plugin-11.7.1.36988-multi.jar truncated to exactly
+              # 100 MiB in v2026.1.0-g6cb4b67 / -g04b8a97). Even on a local PVC, keep
+              # cheap tail-signature checks so any partial write from a killed pod
+              # gets healed on the next run instead of poisoning subsequent builds.
               es_files=$(find $(workspaces.cache.path)/gradle/modules-2/files-2.1/elasticsearch -type f -name '*.tar.gz' 2>/dev/null || true)
               for f in $es_files; do
                 if ! gzip -t "$f" 2>/dev/null; then
                   echo "[cache-sanity] corrupted tarball, removing: $f"
                   rm -f "$f"
-                  # Gradle also stores a .sha1/.md5 sibling that becomes stale
-                  # once the artifact is gone; drop the whole hash-dir so a
-                  # clean re-download can repopulate it.
+                  rm -rf "$(dirname "$f")"
+                fi
+              done
+              jar_files=$(find $(workspaces.cache.path)/gradle/modules-2/files-2.1 -type f -name '*.jar' 2>/dev/null || true)
+              for f in $jar_files; do
+                if ! tail -c 22 "$f" 2>/dev/null | grep -aq $'PK\x05\x06'; then
+                  echo "[cache-sanity] jar missing EOCD signature, removing: $f ($(stat -c %s "$f" 2>/dev/null) bytes)"
+                  rm -f "$f"
                   rm -rf "$(dirname "$f")"
                 fi
               done
@@ -645,43 +591,3 @@ spec:
               git -c user.name="Alauda Bot" -c user.email="alaudabot@alauda.io" \
                 commit -m "Auto-commit by alaudabot in edge [ci skip] - update chart image tags to ${TAG}"
               git push origin HEAD:$(params.git-revision)
-    # migration(sonarqube): save build-sonar-app's gradle cache back to the shared S3
-    # build-cache backend after a successful build (extras/cache-upload@0.1, the same
-    # finally task the operator-build Pipeline uses). Guarded on build-sonar-app success
-    # so a failed build never poisons the cache; cacheSource/fetched are threaded from
-    # cache-fetch.
-    finally:
-      - name: cache-upload
-        timeout: 20m
-        retries: 1
-        when:
-          - input: $(tasks.build-sonar-app.status)
-            operator: in
-            values:
-              - Succeeded
-        taskRef:
-          resolver: hub
-          params:
-            - name: catalog
-              value: extras
-            - name: kind
-              value: task
-            - name: name
-              value: cache-upload
-            - name: version
-              value: "0.1"
-        params:
-          - name: cacheSource
-            value: $(tasks.cache-fetch.results.cacheSource)
-          - name: fetched
-            value: $(tasks.cache-fetch.results.fetched)
-          - name: cachePatterns
-            # Must match cache-fetch's cachePatterns (same hash inputs -> same S3 key).
-            value: ".tekton/build-image.yaml,source/gradle/wrapper/gradle-wrapper.properties,source/build.gradle,source/settings.gradle,source/gradle.properties"
-        workspaces:
-          - name: source
-            workspace: source
-          - name: cache
-            workspace: cache
-          - name: cache-auth
-            workspace: cache-auth
