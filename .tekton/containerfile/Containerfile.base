@@ -6,13 +6,24 @@ FROM registry-cache.alauda.io/library/openjdk:26-ea-17-jdk-slim-bookworm
 WORKDIR /app
 
 ARG SONAR_SCANNER_VERSION=7.1.0.4889
+# sonar-scanner-cli ships a bundled JRE for each arch it publishes; pick the
+# variant matching the build arch so the resulting image works on both amd64
+# and arm64 nodes. The previous hard-coded `-linux-x64` variant crashed with
+# `exec: /app/sonar-scanner/jre/bin/java: Exec format error` on Kylin arm64
+# release-test runs (env1). SonarSource publishes -linux-x64 and -linux-aarch64
+# under the same URL prefix.
 RUN set -ex; \
     apt-get update; \
     apt-get install -y nodejs unzip maven curl ca-certificates tzdata bash locales make wget git jq; \
-    curl -O https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_SCANNER_VERSION}-linux-x64.zip; \
-    unzip sonar-scanner-cli-${SONAR_SCANNER_VERSION}-linux-x64.zip; \
-    mv sonar-scanner-${SONAR_SCANNER_VERSION}-linux-x64 sonar-scanner; \
-    rm sonar-scanner-cli-${SONAR_SCANNER_VERSION}-linux-x64.zip; \
+    case "$(arch)" in \
+      aarch64|arm64) SCANNER_ARCH_SUFFIX=linux-aarch64 ;; \
+      *)             SCANNER_ARCH_SUFFIX=linux-x64 ;; \
+    esac; \
+    curl -O https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_SCANNER_VERSION}-${SCANNER_ARCH_SUFFIX}.zip; \
+    unzip sonar-scanner-cli-${SONAR_SCANNER_VERSION}-${SCANNER_ARCH_SUFFIX}.zip; \
+    mv sonar-scanner-${SONAR_SCANNER_VERSION}-${SCANNER_ARCH_SUFFIX} sonar-scanner; \
+    rm sonar-scanner-cli-${SONAR_SCANNER_VERSION}-${SCANNER_ARCH_SUFFIX}.zip; \
+    /app/sonar-scanner/bin/sonar-scanner --version; \
     rm -rf /var/lib/apt/lists/*
 
 ARG YQ_VERSION=4.25.2
