@@ -119,8 +119,14 @@ ENV PLAYWRIGHT_DOWNLOAD_HOST=${PLAYWRIGHT_DOWNLOAD_HOST}
 # same intent, PLAYWRIGHT_*_PATH is more explicit than relying on $HOME).
 ENV PLAYWRIGHT_DRIVER_PATH=/opt/ms-playwright-go
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+# chown to nonroot so the runtime `playwright.Install` call in testing/steps/sso.go
+# can create its `__dirlock` lock file. The previous `chmod -R o+rX` grants read+exec
+# only -- when playwright-go re-runs Install at test time even with the browsers
+# already baked in, it needs to `mkdir /opt/ms-playwright/__dirlock` and fails with
+# `EACCES: permission denied, mkdir '/opt/ms-playwright/__dirlock'` on nonroot.
+# Full ownership by the runtime user is the simplest fix.
 RUN /app/bin/playwright install chromium --with-deps \
-    && chmod -R o+rX /opt/ms-playwright-go /opt/ms-playwright \
+    && chown -R 65532:65532 /opt/ms-playwright-go /opt/ms-playwright \
     && chmod 0755 /opt/sonarqube-e2e/maven-seed/import-maven-seed.sh \
     && chmod 0755 /app/lynx-entrypoint.sh /app/lynx/*.sh
 
