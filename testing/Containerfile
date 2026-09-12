@@ -80,16 +80,18 @@ ARG ALLURE_VERSION=2.32.0
 # release-test can render the raw godog results before uploading the report.
 RUN set -eux; \
     apt-get update; \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends default-jre-headless libnss-wrapper; \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends default-jre-headless libnss-wrapper busybox-static; \
     wget --retry-connrefused --waitretry=1 --tries=6 \
       -O /tmp/allure.deb \
       "https://github.com/allure-framework/allure2/releases/download/${ALLURE_VERSION}/allure_${ALLURE_VERSION}-1_all.deb"; \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends /tmp/allure.deb; \
     ln -sf /usr/bin/allure /usr/local/bin/allure; \
+    ln -sf /bin/busybox /usr/local/bin/busybox; \
     rm -f /tmp/allure.deb; \
     apt-get clean; \
     rm -rf /var/lib/apt/lists/*; \
-    allure --version
+    allure --version; \
+    busybox --help 2>&1 | head -1
 
 COPY --chown=nonroot:nonroot ./chart /app/chart
 COPY --chown=nonroot:nonroot ./testing /app/testing
