@@ -128,6 +128,36 @@ RUN set -eux; \
         rm -rf "/tmp/elasticsearch-${ES_VERSION}"* "/tmp/elasticsearch-${ES_VERSION}-linux-aarch64.tar.gz"; \
     fi
 
+# sonar-javascript-plugin ships one JAR per Node runtime and a `-multi` JAR that
+# packs only win-x64 + linux-x64 + linux-x64-musl + darwin-arm64. The upstream
+# sonar-application build (source/sonar-application/bundled_plugins.gradle)
+# picks `classifier:'multi'`, so on linux-arm64 hosts the scanner extracts the
+# plugin and finds no linux-arm64/node.xz -- it then falls back to the host
+# `node` on PATH. Since SonarJS 11.7 the shipped `server.cjs` uses Node 20+
+# APIs (`Array.prototype.toReversed`), so anywhere the host runs Node <20 it
+# crashes with `TypeError: ... toReversed is not a function`. Upstream ships
+# the arm64 runtime as a separate `-linux-arm64` classifier for size reasons
+# (SonarJS PR #4726 / JS-170) and never folded it into `multi`. Overlay that
+# JAR over the multi one on arm64 image builds so linux-arm64 SonarQube serves
+# a plugin that carries its own Node 24 -- matching what amd64 already has via
+# the multi JAR's bundled linux-x64/node.xz. Version stays in lockstep with
+# source/build.gradle (`sonar-javascript-plugin:11.7.1.36988`); bumping there
+# means bumping SONAR_JAVASCRIPT_PLUGIN_VERSION + SHA256 here.
+ARG SONAR_JAVASCRIPT_PLUGIN_VERSION=11.7.1.36988
+ARG SONAR_JAVASCRIPT_PLUGIN_LINUX_ARM64_SHA256=918eda938a6ef64711bcf76370e49f891a46bc6eca421e86e5cfc9f967fc12fc
+RUN set -eux; \
+    if [ "${TARGETARCH:-$(dpkg --print-architecture)}" = "arm64" ]; then \
+        multi_jar="${SONARQUBE_HOME}/lib/extensions/sonar-javascript-plugin-${SONAR_JAVASCRIPT_PLUGIN_VERSION}-multi.jar"; \
+        arm64_jar="${SONARQUBE_HOME}/lib/extensions/sonar-javascript-plugin-${SONAR_JAVASCRIPT_PLUGIN_VERSION}-linux-arm64.jar"; \
+        test -f "${multi_jar}"; \
+        curl -fsSL -o "${arm64_jar}" \
+            "https://repo1.maven.org/maven2/org/sonarsource/javascript/sonar-javascript-plugin/${SONAR_JAVASCRIPT_PLUGIN_VERSION}/sonar-javascript-plugin-${SONAR_JAVASCRIPT_PLUGIN_VERSION}-linux-arm64.jar"; \
+        echo "${SONAR_JAVASCRIPT_PLUGIN_LINUX_ARM64_SHA256}  ${arm64_jar}" | sha256sum -c -; \
+        rm -f "${multi_jar}"; \
+        chown sonarqube:root "${arm64_jar}"; \
+        chmod 550 "${arm64_jar}"; \
+    fi
+
 # ES 8.19.21 still bundles Netty 4.1.135.Final, affected by CVE-2026-59903.
 # Keep the bundled Java artifacts aligned when applying the patch release.
 # renovate: datasource=maven depName=netty-handler lookupName=io.netty:netty-handler
