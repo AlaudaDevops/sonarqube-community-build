@@ -1,9 +1,13 @@
-FROM registry-dev.alauda.io/base-images/alpine:3.21.5-alauda-202601301100
+FROM registry-dev.alauda.io/base-images/alpine:3.21.7-alauda-202609100220
 
 # when install sonarqube-community-branch-plugin need update https://github.com/mc1arke/sonarqube-community-branch-plugin/tree/26.1.0?tab=readme-ov-file#manual-install
 ARG SONARQUBE_WEB_VERSION=26.1.0
-# Install CA certificates for TLS validation; upgrade libcrypto3/libssl3, musl, zlib to patch known CVEs.
-RUN apk upgrade --no-cache libcrypto3 libssl3 libexpat musl musl-utils xz-libs zlib python3 pyc python3-pyc python3-pycache-pyc0 && \
+# Install CA certificates for TLS validation. The base image tag above is kept
+# current instead of hand-listing packages to patch: a stale base is what made
+# that list necessary, and the list has to grow every time a new CVE lands in a
+# package nobody remembered to add. `apk upgrade` without arguments still picks
+# up anything published after the base image was cut.
+RUN apk upgrade --no-cache && \
     apk add --no-cache ca-certificates wget unzip zip python3
 
 ADD image/plugin/plugins.txt /tmp/plugins/
