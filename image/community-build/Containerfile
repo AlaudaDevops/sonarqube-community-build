@@ -70,7 +70,7 @@ RUN set -eux; \
 
 # ES 8.19.16 ships netty 4.1.133.Final; several artifacts still need 4.1.135.Final.
 # renovate: datasource=maven depName=netty-handler lookupName=io.netty:netty-handler
-ARG NETTY_VERSION=4.1.135.Final
+ARG NETTY_VERSION=4.1.138.Final
 RUN set -eux; \
     for d in ${SONARQUBE_HOME}/elasticsearch/modules/transport-netty4 \
              ${SONARQUBE_HOME}/elasticsearch/modules/x-pack-inference \
