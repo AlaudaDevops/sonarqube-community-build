@@ -62,10 +62,10 @@ data:
       {{- if .Values.plugins.useDefaultPluginsPackage }}
       for f in /opt/sonarqube/extensions/plugins/tmp/*.jar
       do
-        file=${f##*/} && file=${file%-[0-9]*}
+        file=${f##*/} && file=${file%-[0-9vV]*}
         for original in /opt/sonarqube/extensions/plugins/*.jar
         do
-          originalfile=${original##*/} && originalfile=${originalfile%-[0-9]*}
+          originalfile=${original##*/} && originalfile=${originalfile%-[0-9vV]*}
           if [ "$originalfile" = "$file" ]; then
             rm -f "$original"
           fi

@@ -4,9 +4,6 @@ metadata:
   name: sonarqube-test
 spec:
   helmValues:
-    # Analyzers are imported by scripts/import-official-plugins.sh
-    plugins:
-      deleteDefaultPlugins: false
     global:
       registry:
         address: <config.{{.registry.test | default "registry-dev.alauda.io"}}>
