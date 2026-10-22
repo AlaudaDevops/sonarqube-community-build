@@ -83,7 +83,7 @@ func process(ctx context.Context, ssoParams ssoParams) (ctx2 context.Context, er
 		return ctx, err
 	}
 
-	screenshotPath := "output/images/sonarqube-sso-screenshot.png"
+	screenshotPath := "output/images/sso-login-screenshot.png"
 	defer func() {
 		data, screenshotErr := page.Screenshot(playwright.PageScreenshotOptions{
 			Path: playwright.String(screenshotPath),
@@ -93,7 +93,7 @@ func process(ctx context.Context, ssoParams ssoParams) (ctx2 context.Context, er
 		} else {
 			ctx2 = godog.Attach(ctx2, godog.Attachment{
 				Body:      data,
-				FileName:  "sonarqube-sso-screenshot.png",
+				FileName:  "sso-login-screenshot.png",
 				MediaType: "image/png",
 			})
 			log.Info("保存截图成功", zap.String("path", screenshotPath))

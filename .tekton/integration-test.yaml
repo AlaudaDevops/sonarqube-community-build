@@ -85,13 +85,13 @@ spec:
     # proven-green fix (same VM harness, same two gaps, migration-alauda-18.8.6
     # modules/gitlab-chart/testing/script/prepare-cluster.sh): nfs no-provisioner SC + RWX
     # PV pool as cluster default, plus --publish-status-address/externalIPs on the ingress
-    # controller Service. Image is gitlab-ce-operator's own already-published, generic
-    # kubectl+yq CNG tool image (cross-project reuse, not a new provisioned resource); digest
-    # pinned (no `latest` tag exists on this image). Best-effort: prepare-cluster.sh always
+    # controller Service. Image is platform-edge's generic kubectl image (`latest`); the digest-pinned
+    # gitlab-ce-operator image this step used before was garbage-collected from the registry on
+    # 2026-10-20 and made `deploy` fail with ImagePullFailed. Best-effort: prepare-cluster.sh always
     # exits 0 so a failure here can never skip run-test (deploy has no onError:continue).
     - name: deploy
       value:
-        image: "{{ registry_url }}/alauda-devops-toolchain/gitlab/kubectl@sha256:ee4af3024decc9e2a3e5e11f5669327e5423818bc41788d3dc63c9dd7fd2f505"
+        image: "{{ registry_url }}/platform-edge/kubectl:latest"
         command: |
           set -ux
           export SOURCE_PATH="$(workspaces.source.path)"

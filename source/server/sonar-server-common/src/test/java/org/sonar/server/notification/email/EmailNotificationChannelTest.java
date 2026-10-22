@@ -226,6 +226,34 @@ public class EmailNotificationChannelTest {
   }
 
   @Test
+  public void shouldAppendTrademarkNoticeToPlainTextEmail() throws Exception {
+    configure();
+    underTest.deliver(new EmailMessage().setTo("user@nowhere").setSubject("Foo").setPlainTextMessage("Bar"));
+
+    String content = (String) smtpServer.getReceivedMessages()[0].getContent();
+    assertThat(content)
+      .contains(EmailNotificationChannel.TRADEMARK_NOTICE_LINE_1)
+      .contains(EmailNotificationChannel.TRADEMARK_NOTICE_LINE_2);
+  }
+
+  @Test
+  public void appendHtmlTrademarkNotice_insertsBeforeClosingBody() {
+    String html = EmailNotificationChannel.appendHtmlTrademarkNotice("<html><body><p>Bar</p></BODY></html>");
+
+    assertThat(html)
+      .startsWith("<html><body><p>Bar</p><p")
+      .endsWith("</p></BODY></html>")
+      .contains(EmailNotificationChannel.TRADEMARK_NOTICE_LINE_1 + "<br/>" + EmailNotificationChannel.TRADEMARK_NOTICE_LINE_2);
+  }
+
+  @Test
+  public void appendHtmlTrademarkNotice_appendsWhenNoBody() {
+    assertThat(EmailNotificationChannel.appendHtmlTrademarkNotice("<p>Bar</p>"))
+      .startsWith("<p>Bar</p><p")
+      .contains(EmailNotificationChannel.TRADEMARK_NOTICE_LINE_2);
+  }
+
+  @Test
   public void shouldNotThrowAnExceptionWhenUnableToSendEmail() {
     configure();
     smtpServer.stop();

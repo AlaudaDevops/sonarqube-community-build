@@ -28,6 +28,9 @@
             | kind        | apiVersion | name                     | path            | value | interval | timeout |
             | Deployment  | apps/v1    | sonarqube-test-sonarqube   | $.spec.replicas | 1     | 30s      | 10m     |
         并且 "sonarqube-test" 实例资源检查通过
+        当 执行 "导入 SonarSource 官方插件" 脚本成功
+            | command |
+            | bash scripts/import-official-plugins.sh testing-sonarqube-operator-<template.{{randAlphaNum 4 \| toLower}}> http://<node.ip.random.readable>:<nodeport.http> admin 07Apples@07Apples@ |
         并且 执行 "Sonarqube 官方 e2e" 脚本成功
           | command                                                                                                                                                 |
           | bash scripts/run-sonar-e2e.sh http://<node.ip.random.readable>:<nodeport.http> admin 07Apples@07Apples@ |

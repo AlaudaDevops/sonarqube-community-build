@@ -1,0 +1,18 @@
+Licenses of the components in this image.
+
+- sonarqube-community-branch-plugin (AlaudaDevops fork) and its
+  sonarqube-webapp.zip (mc1arke/sonarqube-community-branch-plugin): GNU LGPL v3,
+  see LICENSE. The webapp is modified by Alauda: brand images replaced, inline
+  logo components rewritten, trademark notice added to the web footer.
+- sonar-findbugs-plugin (spotbugs/sonar-findbugs): GNU LGPL v3, see LICENSE.
+- sonar-auth-oidc-plugin (sonar-auth-oidc/sonar-auth-oidc): Apache License 2.0,
+  see Apache-2.0.txt.
+
+No SonarSource language analyzer (SSALv1) is bundled in this image.
+
+Corresponding source (LGPL-3.0 §6): https://github.com/AlaudaDevops/sonarqube-community-build
+(image tag v<version>-g<short commit> = that commit; includes the source tree, Containerfiles,
+patches and build scripts used to produce this image).
+
+SonarQube® and SonarSource® are registered trademarks of SonarSource S.A.
+Alauda is an independent vendor. This product is not affiliated with, endorsed by, or sponsored by SonarSource S.A. All trademarks are the property of their respective owners and are used here for identification purposes only.
