@@ -17,11 +17,13 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
+// Modified by Alauda on 2026-10-12: append the SonarSource trademark notice to every outgoing email.
 package org.sonar.server.notification.email;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
@@ -101,6 +103,14 @@ public class EmailNotificationChannel extends NotificationChannel {
   private static final String SUBJECT_DEFAULT = "Notification";
   private static final String SMTP_HOST_NOT_CONFIGURED_DEBUG_MSG = "SMTP host was not configured - email will not be sent";
   private static final String MAIL_SENT_FROM = "%sMail sent from: %s";
+
+  // Trademark notice appended verbatim to every outgoing email. Modified by Alauda on 2026-10-12.
+  static final String TRADEMARK_NOTICE_LINE_1 = "SonarQube\u00AE and SonarSource\u00AE are registered trademarks of SonarSource S.A.";
+  static final String TRADEMARK_NOTICE_LINE_2 = "Alauda is an independent vendor. This product is not affiliated with, endorsed by, or sponsored by SonarSource S.A. "
+    + "All trademarks are the property of their respective owners and are used here for identification purposes only.";
+  private static final String TRADEMARK_NOTICE_TEXT = "\n\n--\n" + TRADEMARK_NOTICE_LINE_1 + "\n" + TRADEMARK_NOTICE_LINE_2 + "\n";
+  private static final String TRADEMARK_NOTICE_HTML = "<p style=\"color:#666;font-size:12px\">" + TRADEMARK_NOTICE_LINE_1 + "<br/>"
+    + TRADEMARK_NOTICE_LINE_2 + "</p>";
 
   private final EmailSmtpConfiguration configuration;
   private final Server server;
@@ -249,9 +259,17 @@ public class EmailNotificationChannel extends NotificationChannel {
 
   private static Email createEmailWithMessage(EmailMessage emailMessage) throws EmailException {
     if (emailMessage.isHtml()) {
-      return new HtmlEmail().setHtmlMsg(emailMessage.getMessage());
+      return new HtmlEmail().setHtmlMsg(appendHtmlTrademarkNotice(emailMessage.getMessage()));
     }
-    return new SimpleEmail().setMsg(emailMessage.getMessage());
+    return new SimpleEmail().setMsg(emailMessage.getMessage() + TRADEMARK_NOTICE_TEXT);
+  }
+
+  static String appendHtmlTrademarkNotice(String html) {
+    int bodyEnd = html.toLowerCase(Locale.ROOT).lastIndexOf("</body>");
+    if (bodyEnd < 0) {
+      return html + TRADEMARK_NOTICE_HTML;
+    }
+    return html.substring(0, bodyEnd) + TRADEMARK_NOTICE_HTML + html.substring(bodyEnd);
   }
 
   private void setSubject(Email email, EmailMessage emailMessage) {

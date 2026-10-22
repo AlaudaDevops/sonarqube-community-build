@@ -1,3 +1,4 @@
+// Modified by Alauda on 2026-10-22: exclude the Elasticsearch SQL CLI jar for every ES version, not only 8.6.1.
 import groovy.json.JsonBuilder
 import groovy.json.JsonSlurper
 import org.apache.tools.ant.filters.ReplaceTokens
@@ -188,7 +189,7 @@ task zip(type: Zip, dependsOn: [configurations.compileClasspath]) {
     exclude '**/bin/elasticsearch-setup-passwords'
     exclude '**/bin/elasticsearch-shard'
     exclude '**/bin/elasticsearch-sql-cli'
-    exclude '**/bin/elasticsearch-sql-cli-8.6.1.jar'
+    exclude '**/bin/elasticsearch-sql-cli-*.jar'
     exclude '**/bin/elasticsearch-syskeygen'
     exclude '**/bin/elasticsearch-users'
     exclude '**/jdk/**'

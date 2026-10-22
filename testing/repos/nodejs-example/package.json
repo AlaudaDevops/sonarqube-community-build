@@ -1,7 +1,7 @@
 {
     "name": "sonar-test-project",
     "version": "1.0.0",
-    "description": "A test project for sonar scanner",
+    "description": "A test project for the code quality scanner",
     "main": "src/app.js",
     "scripts": {
         "start": "node src/app.js",

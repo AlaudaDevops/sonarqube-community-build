@@ -95,6 +95,8 @@ RUN set -eux; \
 
 COPY --chown=nonroot:nonroot ./chart /app/chart
 COPY --chown=nonroot:nonroot ./testing /app/testing
+# Analyzer list read by testing/scripts/import-official-plugins.sh
+COPY --chown=nonroot:nonroot ./hack/official-plugins-26.1.txt /app/hack/official-plugins-26.1.txt
 COPY --chown=nonroot:nonroot ./testing/lynx-entrypoint.sh /app/lynx-entrypoint.sh
 COPY --chown=nonroot:nonroot ./testing/lynx /app/lynx
 COPY --chown=nonroot:nonroot --from=builder /tools/bin/sonarqube-e2e.test /app/bin/sonarqube-e2e.test

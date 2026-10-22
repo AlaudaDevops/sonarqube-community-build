@@ -37,6 +37,9 @@
       url: http://test-sonarqube-ingress-http.example.com
       timeout: 30m
       """
+    当 执行 "导入 SonarSource 官方插件" 脚本成功
+        | command |
+        | bash scripts/import-official-plugins.sh testing-sonarqube-http-<template.{{randAlphaNum 4 \| toLower}}> http://test-sonarqube-ingress-http.example.com admin 07Apples@07Apples@ |
     当 执行 "sonar 扫描" 脚本成功
       | command                                                                                                                           |
       | bash scripts/scan_with_notoken.sh 'http://test-sonarqube-ingress-http.example.com' admin 07Apples@07Apples@ <path> sonar-scanner -Dsonar.projectKey=<projectKey> -Dsonar.host.url='http://test-sonarqube-ingress-http.example.com' |
@@ -123,6 +126,9 @@
       url: http://<node.ip.random.readable>:<nodeport.http>
       timeout: 30m
       """
+    当 执行 "导入 SonarSource 官方插件" 脚本成功
+        | command |
+        | bash scripts/import-official-plugins.sh testing-sonarqube-nodeport-<template.{{randAlphaNum 4 \| toLower}}> http://<node.ip.random.readable>:<nodeport.http> admin 07Apples@07Apples@ |
     当 执行 "sonar 扫描" 脚本成功
       | command                                                                                                |
       | bash -x scripts/scan_with_notoken.sh http://<node.ip.random.readable>:<nodeport.http> admin 07Apples@07Apples@ <path> sonar-scanner -Dsonar.projectKey=<projectKey> -Dsonar.host.url='http://<node.ip.random.readable>:<nodeport.http>' |

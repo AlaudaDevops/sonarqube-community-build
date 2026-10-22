@@ -275,7 +275,11 @@ spec:
               done
               jar_files=$(find $(workspaces.cache.path)/gradle/modules-2/files-2.1 -type f -name '*.jar' 2>/dev/null || true)
               for f in $jar_files; do
-                if ! tail -c 22 "$f" 2>/dev/null | grep -aq $'PK\x05\x06'; then
+                # EOCD is the last 22 bytes plus an optional ZIP comment of up to
+                # 65535 bytes; BouncyCastle jars carry a 7-byte comment, so a 22-byte
+                # window flagged valid bcprov/bcpkix/bcutil jars as truncated every run
+                # and the half-pruned cache then failed compileJava.
+                if ! tail -c 65557 "$f" 2>/dev/null | grep -aq $'PK\x05\x06'; then
                   echo "[cache-sanity] jar missing EOCD signature, removing: $f ($(stat -c %s "$f" 2>/dev/null) bytes)"
                   rm -f "$f"
                   rm -rf "$(dirname "$f")"
@@ -468,13 +472,10 @@ spec:
       # type:tekton PIPELINE hub is broken). Params remapped from the old
       # trivy-image-scan contract (targets/quality-gate-rules/quality-gate/scan-flags)
       # to trivy-scanner's own (scanTargets/severity/ignoreUnfixed/skipDbUpdate).
-      # SCOPE REDUCTION (recorded, 🟢 repo-local/reversible): the old
-      # `image-scan-gate-enabled` param toggled whether findings fail the pipeline
-      # (quality-gate); it defaulted to "false" (non-blocking) and nothing in this
-      # dataset overrides it, so dropping the toggle preserves the OBSERVED default
-      # behavior (report-only, non-blocking) with a smaller param surface. If the
-      # driver wants the enable/disable knob restored, re-add it as a conditional
-      # `exitCode` value here -- flagged as an open question, not decided silently.
+      # Quality gate: any vulnerability of any severity that has a fixed version fails
+      # the pipeline (exitCode 1), which also stops update-chart-values from bumping the
+      # chart to unscanned-dirty images. Findings without an upstream fix are reported
+      # but do not block (ignoreUnfixed).
       - name: image-scan
         timeout: 60m
         retries: 2
@@ -504,10 +505,15 @@ spec:
               - $(tasks.build-sonar-plugin-image.results.IMAGE_URLS[0])
           - name: severity
             value:
+              - UNKNOWN
+              - LOW
+              - MEDIUM
               - HIGH
               - CRITICAL
           - name: ignoreUnfixed
             value: "true"
+          - name: exitCode
+            value: "1"
           - name: skipDbUpdate
             value: "false"
           # sonar-image is ~918MiB; trivy's 5m per-target default trips

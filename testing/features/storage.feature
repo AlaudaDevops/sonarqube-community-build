@@ -32,6 +32,9 @@
       url: http://<node.ip.random.readable>:<nodeport.http>
       timeout: 30m
       """
+    当 执行 "导入 SonarSource 官方插件" 脚本成功
+        | command |
+        | bash scripts/import-official-plugins.sh testing-sonarqube-storage-sc-<template.{{randAlphaNum 4 \| toLower}}> http://<node.ip.random.readable>:<nodeport.http> admin 07Apples@07Apples@ |
     当 执行 "sonar 扫描" 脚本成功
       | command                                                                                              |`
       | bash scripts/scan_with_notoken.sh 'http://<node.ip.random.readable>:<nodeport.http>' admin 07Apples@07Apples@ repos/go-example sonar-scanner -Dsonar.host.url='http://<node.ip.random.readable>:<nodeport.http>' -Dsonar.projectKey=method-cli |
@@ -111,6 +114,9 @@
       url: http://<node.ip.random.readable>:<nodeport.http>
       timeout: 30m
       """
+    当 执行 "导入 SonarSource 官方插件" 脚本成功
+        | command |
+        | bash scripts/import-official-plugins.sh testing-sonarqube-storage-pvc-<template.{{randAlphaNum 4 \| toLower}}> http://<node.ip.random.readable>:<nodeport.http> admin 07Apples@07Apples@ |
     假定 执行 "maven 扫描" 脚本成功
       | command                                                                                                                         |
       | bash scripts/scan_with_notoken.sh http://<node.ip.random.readable>:<nodeport.http> admin 07Apples@07Apples@ repos/maven-simple mvn verify sonar:sonar -Dsonar.projectKey=method-maven -Dsonar.projectName=method-maven -Dsonar.host.url=http://<node.ip.random.readable>:<nodeport.http> |

@@ -1,3 +1,5 @@
+// Modified by Alauda on 2026-10-20: removed the 19 SonarSource analyzer (SSALv1) version entries from dependencyManagement; they are no longer bundled.
+// Modified by Alauda on 2026-10-22: hazelcast and mybatis come from patched builds (see the sonarqube-patched-deps repository below).
 import groovy.text.SimpleTemplateEngine
 import org.sonar.build.BlackBoxTest
 
@@ -146,6 +148,25 @@ allprojects {
       }
 
       metadataSources { artifact() }
+    }
+    // Patched upstream releases that bump a dependency the library shades, for fixes
+    // upstream has merged but not released: https://github.com/AlaudaDevops/sonarqube-patched-deps
+    // Only the -alauda-N versions are taken from here; jar only, no pom (both libraries
+    // declare their dependencies as optional, provided or test).
+    exclusiveContent {
+      forRepository {
+        ivy {
+          url 'https://github.com/AlaudaDevops/sonarqube-patched-deps/releases/download/'
+          patternLayout {
+            artifact '/[module]/[revision]/[module]-[revision].[ext]'
+          }
+          metadataSources { artifact() }
+        }
+      }
+      filter {
+        includeVersionByRegex('com\\.hazelcast', 'hazelcast', '.*-alauda-\\d+')
+        includeVersionByRegex('org\\.mybatis', 'mybatis', '.*-alauda-\\d+')
+      }
     }
   }
 
@@ -326,31 +347,12 @@ subprojects {
       dependency 'com.sonarsource.security:sonar-security-python-frontend-plugin:11.14.0.42299'
       dependency 'com.sonarsource.security:sonar-security-vbnet-frontend-plugin:11.14.0.42299'
       dependency 'com.sonarsource.slang:sonar-apex-plugin:1.22.1.1830'
-      dependency 'org.sonarsource.slang:sonar-ruby-plugin:1.21.1.1877'
-      dependency 'org.sonarsource.slang:sonar-scala-plugin:1.20.1.1884'
       dependency 'com.sonarsource.swift:sonar-swift-plugin:5.0.0.12095'
       dependency 'com.sonarsource.tsql:sonar-tsql-plugin:1.16.1.9133'
-      dependency 'org.sonarsource.dotnet:sonar-csharp-plugin:10.17.0.131074'
-      dependency 'org.sonarsource.dotnet:sonar-vbnet-plugin:10.17.0.131074'
-      dependency 'org.sonarsource.flex:sonar-flex-plugin:2.16.0.6009'
-      dependency 'org.sonarsource.go:sonar-go-plugin:1.31.0.4938'
-      dependency 'org.sonarsource.html:sonar-html-plugin:3.22.0.7011'
-      dependency 'org.sonarsource.jacoco:sonar-jacoco-plugin:1.4.0.4946'
-      dependency 'org.sonarsource.java:sonar-java-plugin:8.22.0.41895'
-      dependency 'org.sonarsource.java:sonar-java-symbolic-execution-plugin:8.16.3.1589'
-      dependency 'org.sonarsource.javascript:sonar-javascript-plugin:11.7.1.36988'
-      dependency 'org.sonarsource.php:sonar-php-plugin:3.53.0.15220'
-      dependency 'org.sonarsource.plugins.cayc:sonar-cayc-plugin:2.6.0.3665'
-      dependency 'org.sonarsource.python:sonar-python-plugin:5.31.0.36502'
-      dependency 'org.sonarsource.rust:sonar-rust-plugin:1.2.0.1339'
       dependency 'com.sonarsource.python:sonar-python-enterprise-plugin:5.14.2.29072'
-      dependency 'org.sonarsource.kotlin:sonar-kotlin-plugin:3.3.1.7792'
       dependency "org.sonarsource.api.plugin:sonar-plugin-api:$pluginApiVersion"
       dependency "org.sonarsource.api.plugin:sonar-plugin-api-test-fixtures:$pluginApiVersion"
-      dependency 'org.sonarsource.xml:sonar-xml-plugin:2.14.2.7437'
-      dependency 'org.sonarsource.iac:sonar-iac-plugin:2.4.0.18716'
       dependency 'com.sonarsource.iac:sonar-iac-enterprise-plugin:2.4.0.18716'
-      dependency 'org.sonarsource.text:sonar-text-plugin:2.49.0.12346'
       dependency 'com.sonarsource.text:sonar-text-developer-plugin:2.36.0.10152'
       dependency 'com.sonarsource.text:sonar-text-enterprise-plugin:2.36.0.10152'
       dependency 'com.sonarsource.jcl:sonar-jcl-plugin:1.4.2.2894'
@@ -373,7 +375,7 @@ subprojects {
       dependency 'commons-codec:commons-codec:1.20.0'
       dependency 'commons-dbutils:commons-dbutils:1.8.1'
       dependency 'commons-io:commons-io:2.21.0'
-      imports { mavenBom 'com.fasterxml.jackson:jackson-bom:2.21.5' }
+      imports { mavenBom 'com.fasterxml.jackson:jackson-bom:2.21.7' }
       dependency 'com.eclipsesource.minimal-json:minimal-json:0.9.5'
       dependencySet(group: 'com.github.scribejava', version: '8.3.3') {
         entry 'scribejava-apis'
@@ -406,7 +408,8 @@ subprojects {
       }
       dependency "com.google.protobuf:protobuf-java:${protobufVersion}"
       dependency 'com.h2database:h2:2.3.232'
-      dependencySet(group: 'com.hazelcast', version: '5.6.0') {
+      // 5.7.0 with shaded Jackson 2.22.4 / 3.2.3 (sonarqube-patched-deps).
+      dependencySet(group: 'com.hazelcast', version: '5.7.0-alauda-1') {
         entry 'hazelcast'
       }
       // Documentation must be updated if mssql-jdbc is updated: https://github.com/SonarSource/sonarqube/commit/03e4773ebf6cba854cdcf57a600095f65f4f53e7
@@ -528,7 +531,8 @@ subprojects {
         }
       }
       dependency "org.springframework.security:spring-security-saml2-service-provider:${springSecurityVersion}"
-      dependency 'org.mybatis:mybatis:3.5.19'
+      // 3.5.19 with shaded ognl 3.4.16 (sonarqube-patched-deps).
+      dependency 'org.mybatis:mybatis:3.5.19-alauda-1'
       dependencySet(group: 'org.slf4j', version: '2.0.17') {
         entry 'jcl-over-slf4j'
         entry 'jul-to-slf4j'

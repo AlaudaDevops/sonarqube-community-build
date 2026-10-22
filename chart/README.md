@@ -337,7 +337,7 @@ If you want to make your application publicly visible with Routes, you can set `
 
 ## License
 
-SonarQube Community Build is released under the [GNU Lesser General Public License, Version 3.0⁠,](http://www.gnu.org/licenses/lgpl.txt) and packaged with [SSALv1](https://www.sonarsource.com/license/ssal/) analyzers. SonarQube Server Developer and Enterprise are licensed under [SonarQube Server Terms and Conditions](https://www.sonarsource.com/legal/sonarqube/terms-and-conditions/).
+SonarQube Community Build is released under the [GNU Lesser General Public License, Version 3.0⁠,](http://www.gnu.org/licenses/lgpl.txt). The SonarSource language analyzers (SSALv1) are not part of this distribution. SonarQube Server Developer and Enterprise are licensed under [SonarQube Server Terms and Conditions](https://www.sonarsource.com/legal/sonarqube/terms-and-conditions/).
 
 ## Configuration
 

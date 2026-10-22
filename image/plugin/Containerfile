@@ -1,4 +1,4 @@
-FROM registry-dev.alauda.io/base-images/alpine:3.21.7-alauda-202609100220
+FROM registry-dev.alauda.io/base-images/alpine:3.21.7-alauda-202610120220
 
 # when install sonarqube-community-branch-plugin need update https://github.com/mc1arke/sonarqube-community-branch-plugin/tree/26.1.0?tab=readme-ov-file#manual-install
 ARG SONARQUBE_WEB_VERSION=26.1.0
@@ -16,9 +16,20 @@ RUN cat /tmp/plugins/plugins.txt | xargs wget && \
     wget -O /tmp/sonarqube-webapp.zip https://github.com/mc1arke/sonarqube-community-branch-plugin/releases/download/${SONARQUBE_WEB_VERSION}/sonarqube-webapp.zip
 
 # CVE-2025-13465: patch lodash inside sonarqube-webapp.zip
+# This webapp replaces /opt/sonarqube/web at runtime (chart
+# install-plugins initContainer), so it gets the same brand step as the main image.
 COPY --chmod=555 image/community-build/patch-lodash-cve-2025-13465.py /tmp/patch-lodash-cve-2025-13465.py
+COPY image/brand /tmp/alauda-brand
 RUN mkdir -p /tmp/webapp-patched && \
     unzip -q /tmp/sonarqube-webapp.zip -d /tmp/webapp-patched && \
     python3 /tmp/patch-lodash-cve-2025-13465.py /tmp/webapp-patched/js && \
+    python3 /tmp/alauda-brand/apply_brand.py /tmp/webapp-patched && \
+    rm -f /tmp/sonarqube-webapp.zip && \
     cd /tmp/webapp-patched && zip -qr /tmp/sonarqube-webapp.zip . && \
-    rm -rf /tmp/webapp-patched
+    rm -rf /tmp/webapp-patched /tmp/alauda-brand
+
+# License texts at /licenses.
+RUN install -d -m 0755 /licenses
+COPY --chmod=444 source/LICENSE.txt /licenses/LICENSE
+COPY --chmod=444 image/licenses/plugins/README /licenses/README
+COPY --chmod=444 image/licenses/plugins/Apache-2.0.txt /licenses/Apache-2.0.txt
