@@ -23,7 +23,3 @@ jdbcOverwrite:
 global:
   registry:
     address: <config.{{.registry.cluster | default "registry-dev.alauda.io"}}>
-# The SonarSource analyzers are imported after deployment by
-# scripts/import-official-plugins.sh; keep the imported JARs across pod restarts.
-plugins:
-  deleteDefaultPlugins: false

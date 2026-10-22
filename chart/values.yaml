@@ -441,7 +441,10 @@ prometheusMonitoring:
 #    - "https://github.com/SonarSource/sonar-ldap/releases/download/2.2-RC3/sonar-ldap-plugin-2.2.0.601.jar"
 #
 plugins:
-  deleteDefaultPlugins: true
+  # Remove every JAR from extensions/plugins before the packaged plugins are copied in.
+  # Keep it false so analyzers that users import or install from the Marketplace
+  # survive pod restarts; older copies of the packaged plugins are replaced by name anyway.
+  deleteDefaultPlugins: false
   useDefaultPluginsPackage: true
   install: []
 

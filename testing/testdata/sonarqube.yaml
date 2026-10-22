@@ -4,7 +4,8 @@ metadata:
   name: sonarqube-test
 spec:
   helmValues:
-    # Analyzers are imported by scripts/import-official-plugins.sh
+    # Analyzers are imported by scripts/import-official-plugins.sh. Set explicitly because the
+    # operator under test may bundle a chart that still defaults to deleting them on start.
     plugins:
       deleteDefaultPlugins: false
     global:

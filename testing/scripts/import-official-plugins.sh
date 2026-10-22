@@ -6,8 +6,8 @@
 #
 # Usage: import-official-plugins.sh <namespace> <sonarqube-url> <admin-user> <admin-password>
 #
-# The release must be deployed with plugins.deleteDefaultPlugins=false, otherwise the
-# install-plugins init container removes the imported JARs on the next pod start.
+# The release must keep plugins.deleteDefaultPlugins=false (the chart default), otherwise the
+# container start script removes the imported JARs on the next pod start.
 #
 # Env:
 #   MAVEN_REPO_URL  where to download the JARs from (default: Maven Central)

@@ -534,6 +534,8 @@ The following table lists the configurable parameters of the SonarQube chart and
 
 | Parameter                    | Description                                                                     | Default                                                                |
 | ---------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `plugins.deleteDefaultPlugins` | Remove every JAR from `extensions/plugins` on startup, including user-installed plugins | `false`                                                     |
+| `plugins.useDefaultPluginsPackage` | Copy the plugins packaged in the plugins image, replacing older versions of the same plugin | `true`                                     |
 | `plugins.install`            | Link(s) to the plugin JARs to download and install                              | `[]`                                                                   |
 | `plugins.resources`          | Plugin Pod resource requests & limits                                           | `{}`                                                                   |
 | `plugins.httpProxy`          | For use behind a corporate proxy when downloading plugins                       | `""`                                                                   |
