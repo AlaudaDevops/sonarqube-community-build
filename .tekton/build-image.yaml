@@ -577,10 +577,14 @@ spec:
 
               # chart template (_alauda.tpl) builds the image ref as
               # registry.address/repository:tag -> bump only the tag. update-image-tag.sh
-              # matches by repository name (devops/sonarqube, devops/sonarqube-plugins,
-              # the chart's product-path entries) and rewrites the following tag: line.
-              bash ./hack/update-image-tag.sh devops/sonarqube:${TAG} chart/values.yaml
-              bash ./hack/update-image-tag.sh devops/sonarqube-plugins:${TAG} chart/values.yaml
+              # matches by the trailing segment of `repository:` (its regex is
+              # `repository:.*<name>$`), which since the edge-build PaC migration is
+              # `alauda-devops-toolchain/sonarqube/sonarqube-community-build{,-plugins}`
+              # -- the previous `devops/sonarqube{,-plugins}` arguments matched nothing
+              # and the step exited nonzero, breaking the auto-commit on every push
+              # to alauda-2026.1.0 (first noticed after the MR!16 alpine-base bump).
+              bash ./hack/update-image-tag.sh sonarqube-community-build:${TAG} chart/values.yaml
+              bash ./hack/update-image-tag.sh sonarqube-community-build-plugins:${TAG} chart/values.yaml
 
               if git diff --quiet -- chart/values.yaml; then
                 echo "chart/values.yaml already at ${TAG}; nothing to commit"
