@@ -17,6 +17,7 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
+// Modified by Alauda on 2026-03-26: the SONAR_WEB_CSP_SAML_POLICY environment variable replaces the whole policy ({nonce} is substituted); the default policy restricts connect-src and img-src to 'self', adds form-action 'self' and frame-ancestors 'none', and fixes the joined font-src/img-src entries.
 package org.sonar.server.authentication;
 
 import java.math.BigInteger;

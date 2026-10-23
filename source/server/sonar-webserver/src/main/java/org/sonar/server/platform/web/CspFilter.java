@@ -17,6 +17,7 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
+// Modified by Alauda on 2026-03-26: the SONAR_WEB_CSP_POLICY environment variable replaces the whole policy; the default policy restricts connect-src and img-src to 'self' and adds form-action 'self', frame-ancestors 'none' and frame-src 'none'.
 package org.sonar.server.platform.web;
 
 import jakarta.servlet.Filter;
